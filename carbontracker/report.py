@@ -88,7 +88,7 @@ class LogParser:
             })
         
         # Parse carbon intensity
-        ci_match = re.search(r'Average carbon intensity during training was ([\d\.]+) gCO2/kWh at detected location: (.*)', self.log_content)
+        ci_match = re.search(r'Average carbon intensity during training was ([\d\.]+) gCO2eq/kWh at detected location: (.*)', self.log_content)
         if ci_match:
             self.carbon_intensity = float(ci_match.group(1))
             self.location = ci_match.group(2)
@@ -236,7 +236,7 @@ def generate_report_from_log(log_file_path, output_path):
     
     # KPI Table
     kpi_data = [[
-        Paragraph(f'<para align="center"><b><font size=16>{metrics["co2_kg"]:.3f} kg</font></b><br/><font size=10>CO2eq Emissions</font><br/><font size=8>Carbon Intensity: {parser.carbon_intensity:.2f} gCO2/kWh</font></para>', normal_style),
+        Paragraph(f'<para align="center"><b><font size=16>{metrics["co2_kg"]:.3f} kg</font></b><br/><font size=10>CO2eq Emissions</font><br/><font size=8>Carbon Intensity: {parser.carbon_intensity:.2f} gCO2eq/kWh</font></para>', normal_style),
         Paragraph(f'<para align="center"><b><font size=16>{metrics["energy_kwh"]:.3f} kWh</font></b><br/><font size=10>Total Energy</font><br/><font size=8>Average Power: {metrics["total_power"]:.1f} W</font></para>', normal_style),
         Paragraph(f'<para align="center"><b><font size=16>{format_duration(metrics["total_duration"])}</font></b><br/><font size=10>Training Duration</font><br/><font size=8>Total Epochs: {len(parser.epochs)}</font></para>', normal_style)
     ]]

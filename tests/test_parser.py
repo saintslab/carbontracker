@@ -458,9 +458,9 @@ class TestParser(fake_filesystem_unittest.TestCase):
             "2022-11-14 15:43:37 - Duration: 0:00:53.25\n"
             "2022-11-14 15:43:37 - Average power usage (W) for gpu: [None]\n"
             "2022-11-14 15:43:37 - Average power usage (W) for cpu: [None]\n"
-            "2022-11-14 15:43:37 - Carbon intensities (gCO2/kWh) fetched every 900 s at detected location Copenhagen, Capital Region, DK: [102.0]\n"
-            "2022-11-14 15:43:37 - Average carbon intensity during training was 102.00 gCO2/kWh at detected location: Copenhagen, Capital Region, DK.\n"
-            "2022-11-14 15:43:37 - Carbon intensity for the next 0:03:33 is predicted to be 102.00 gCO2/kWh at detected location: Copenhagen, Capital Region, DK.\n"
+            "2022-11-14 15:43:37 - Carbon intensities (gCO2eq/kWh) fetched every 900 s at detected location Copenhagen, Capital Region, DK: [102.0]\n"
+            "2022-11-14 15:43:37 - Average carbon intensity during training was 102.00 gCO2eq/kWh at detected location: Copenhagen, Capital Region, DK.\n"
+            "2022-11-14 15:43:37 - Carbon intensity for the next 0:03:33 is predicted to be 102.00 gCO2eq/kWh at detected location: Copenhagen, Capital Region, DK.\n"
             "2022-11-14 15:43:37 - Monitoring thread ended.\n"
         )
 

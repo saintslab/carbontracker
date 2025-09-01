@@ -32,7 +32,7 @@ class TestIntensity(unittest.TestCase):
             with importlib.resources.as_file(ref) as path:
                 carbon_intensities_df = pd.read_csv(path)
         intensity_row = carbon_intensities_df[carbon_intensities_df["alpha-2"] == mock_location.country].iloc[0]
-        expected_intensity = intensity_row["Carbon intensity of electricity (gCO2/kWh)"]
+        expected_intensity = intensity_row["Carbon intensity of electricity (gCO2eq/kWh)"]
 
         self.assertEqual(result["carbon_intensity"], expected_intensity)
         self.assertIn("Defaulted to average carbon intensity", result["description"])
@@ -63,7 +63,7 @@ class TestIntensity(unittest.TestCase):
 
         expected_description = (
             f"Live carbon intensity could not be fetched at detected location: {mock_location.address}. "
-            f"Defaulted to average carbon intensity for world in 2019 of {constants.WORLD_2019_CARBON_INTENSITY:.2f} gCO2/kWh."
+            f"Defaulted to average carbon intensity for world in 2019 of {constants.WORLD_2019_CARBON_INTENSITY:.2f} gCO2eq/kWh."
         )
 
         assert default_intensity["carbon_intensity"] == constants.WORLD_2019_CARBON_INTENSITY
@@ -86,7 +86,7 @@ class TestIntensity(unittest.TestCase):
 
         expected_description = (
             f"Live carbon intensity could not be fetched at detected location: {mock_location.address}. "
-            f"Defaulted to average carbon intensity for world in 2019 of {constants.WORLD_2019_CARBON_INTENSITY:.2f} gCO2/kWh."
+            f"Defaulted to average carbon intensity for world in 2019 of {constants.WORLD_2019_CARBON_INTENSITY:.2f} gCO2eq/kWh."
         )
 
         self.assertEqual(default_intensity["carbon_intensity"], constants.WORLD_2019_CARBON_INTENSITY)
@@ -138,15 +138,15 @@ class TestIntensity(unittest.TestCase):
         def set_expected_message(is_prediction, success, carbon_intensity):
             if is_prediction:
                 if success:
-                    message = f"Carbon intensity for the next 1:00:00 is predicted to be {carbon_intensity:.2f} gCO2/kWh at detected location: {fallback_address}."
+                    message = f"Carbon intensity for the next 1:00:00 is predicted to be {carbon_intensity:.2f} gCO2eq/kWh at detected location: {fallback_address}."
                 else:
                     message = f"Failed to predict carbon intensity for the next 1:00:00, fallback on average measured intensity at detected location: {fallback_address}."
             else:
                 if success:
-                    message = f"Current carbon intensity is {carbon_intensity:.2f} gCO2/kWh at detected location: {fallback_address}."
+                    message = f"Current carbon intensity is {carbon_intensity:.2f} gCO2eq/kWh at detected location: {fallback_address}."
                 else:
                     message = (f"Live carbon intensity could not be fetched at detected location: {detected_address}. "
-                               f"Defaulted to average carbon intensity for DK in 2023 of 151.65 gCO2/kWh. "
+                               f"Defaulted to average carbon intensity for DK in 2023 of 151.65 gCO2eq/kWh. "
                                f"at detected location: {fallback_address}.")
             return message
         # Test scenarios

@@ -46,12 +46,12 @@ def get_default_intensity():
         intensity_row = carbon_intensities_df[
             carbon_intensities_df["alpha-2"] == country
         ].iloc[0]
-        intensity: float = intensity_row["Carbon intensity of electricity (gCO2/kWh)"]
+        intensity: float = intensity_row["Carbon intensity of electricity (gCO2eq/kWh)"]
         year: int = intensity_row["Year"]
-        description = f"Defaulted to average carbon intensity for {country} in {year} of {intensity:.2f} gCO2/kWh."
+        description = f"Defaulted to average carbon intensity for {country} in {year} of {intensity:.2f} gCO2eq/kWh."
     except Exception as err:
         intensity = constants.WORLD_2019_CARBON_INTENSITY
-        description = f"Defaulted to average carbon intensity for world in 2019 of {intensity:.2f} gCO2/kWh."
+        description = f"Defaulted to average carbon intensity for world in 2019 of {intensity:.2f} gCO2eq/kWh."
 
     description = (
         f"Live carbon intensity could not be fetched at detected location: {address}. "
@@ -133,7 +133,7 @@ def carbon_intensity(logger, time_dur=None, fetchers=None):
 
     if not carbon_intensity.success:
         logger.err_warn(
-            "Failed to retrieve carbon intensity: Defaulting to average carbon intensity {} gCO2/kWh.".format(
+            "Failed to retrieve carbon intensity: Defaulting to average carbon intensity {} gCO2eq/kWh.".format(
                 default_intensity["carbon_intensity"]
             )
         )
@@ -146,7 +146,7 @@ def set_carbon_intensity_message(ci: CarbonIntensity, time_dur):
             ci.message = (
                 "Carbon intensity for the next "
                 f"{loggerutil.convert_to_timestring(time_dur)} is "
-                f"predicted to be {ci.carbon_intensity:.2f} gCO2/kWh"
+                f"predicted to be {ci.carbon_intensity:.2f} gCO2eq/kWh"
             )
         else:
             ci.message = (
@@ -157,7 +157,7 @@ def set_carbon_intensity_message(ci: CarbonIntensity, time_dur):
     else:
         if ci.success:
             ci.message = (
-                f"Current carbon intensity is {ci.carbon_intensity:.2f} gCO2/kWh"
+                f"Current carbon intensity is {ci.carbon_intensity:.2f} gCO2eq/kWh"
             )
         else:
             ci.set_default_message()

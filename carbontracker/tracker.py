@@ -52,7 +52,7 @@ class CarbonIntensityThread(Thread):
             and not np.isnan(ci.carbon_intensity)
         ):
             self.carbon_intensities.append(ci)
-            self.logger.info(f"Carbon intensity: {ci.carbon_intensity:.2f} gCO2/kWh at {ci.address}")
+            self.logger.info(f"Carbon intensity: {ci.carbon_intensity:.2f} gCO2eq/kWh at {ci.address}")
 
     def predict_carbon_intensity(self, pred_time_dur):
         ci = intensity.carbon_intensity(self.logger, time_dur=pred_time_dur)
@@ -87,14 +87,14 @@ class CarbonIntensityThread(Thread):
         avg_intensity = np.mean(intensities)
         msg = (
             f"Average carbon intensity during training was {avg_intensity:.2f}"
-            f" gCO2/kWh at detected location: {location}."
+            f" gCO2eq/kWh at detected location: {location}."
         )
         avg_ci = intensity.CarbonIntensity(
             carbon_intensity=avg_intensity, message=msg, success=True
         )
 
         self.logger.info(
-            "Carbon intensities (gCO2/kWh) fetched every "
+            "Carbon intensities (gCO2eq/kWh) fetched every "
             f"{self.update_interval} s at detected location {location}: "
             f"{intensities}"
         )

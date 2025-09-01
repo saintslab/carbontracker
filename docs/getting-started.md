@@ -17,7 +17,7 @@ $ carbontracker python script.py
 Example output:
 ```
 CarbonTracker: The following components were found: CPU with device(s) cpu:0.
-CarbonTracker: Average carbon intensity during training was 151.50 gCO2/kWh at detected location: Copenhagen, Capital Region, DK.
+CarbonTracker: Average carbon intensity during training was 151.50 gCO2eq/kWh at detected location: Copenhagen, Capital Region, DK.
 CarbonTracker: 
 Actual consumption:
 	Time:	0:00:24
