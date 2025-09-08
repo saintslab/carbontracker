@@ -61,7 +61,11 @@ class ElectricityMap(IntensityFetcher):
 
         response = requests.get(API_URL, headers=headers, params=params)
         if not response.ok:
-            raise exceptions.CarbonIntensityFetcherError(response.json())
-        carbon_intensity = response.json()["carbonIntensity"]
+            try:
+                errorDetails = response.json()
+            except:
+                errorDetails = "Bad response recieved from api. Could not parse json"
+            raise exceptions.CarbonIntensityFetcherError(errorDetails)
 
+        carbon_intensity = response.json()["carbonIntensity"]
         return carbon_intensity

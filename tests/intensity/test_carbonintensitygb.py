@@ -122,6 +122,26 @@ class TestCarbonIntensityGB(TestCase):
         with self.assertRaises(exceptions.CarbonIntensityFetcherError):
             self.fetcher._carbon_intensity_gb_national(time_dur)
 
+    @mock.patch(
+        "carbontracker.emissions.intensity.fetchers.carbonintensitygb.requests.get"
+    )
+    def test_carbon_intensity_gb_national_with_bad_json(self, mock_get):
+        mock_response = mock.MagicMock()
+        mock_response.ok = False
+        mock_response.json.return_value = ""
+        mock_get.return_value = mock_response
+        time_dur = 3600
+
+        with self.assertRaises(exceptions.CarbonIntensityFetcherError):
+            self.fetcher._carbon_intensity_gb_national(time_dur)
+
+
+
+
+
+    
+    
+    
     def test_time_from_to_str(self):
         time_dur = 3600
         time_from = datetime.datetime.now(datetime.timezone.utc)

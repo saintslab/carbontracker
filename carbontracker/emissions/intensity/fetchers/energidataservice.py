@@ -38,8 +38,14 @@ class EnergiDataService(IntensityFetcher):
         for area in areas:
             url = url_creator(area)
             response = requests.get(url)
+
             if not response.ok:
-                raise exceptions.CarbonIntensityFetcherError(response.json())
+                try:
+                    errorDetails = response.json()
+                except:
+                    errorDetails = "Bad response recieved from api. Could not parse json"
+                raise exceptions.CarbonIntensityFetcherError(errorDetails)
+
             carbon_intensities.append(response.json()["records"][0]["CO2Emission"])
         return np.mean(carbon_intensities)
 
@@ -53,8 +59,14 @@ class EnergiDataService(IntensityFetcher):
             + "&limit=4"
         )
         response = requests.get(url)
+        
         if not response.ok:
-            raise exceptions.CarbonIntensityFetcherError(response.json())
+            try:
+                errorDetails = response.json()
+            except:
+                errorDetails = "Bad response recieved from api. Could not parse json"
+            raise exceptions.CarbonIntensityFetcherError(errorDetails)
+ 
         data = response.json()["records"]
         carbon_intensities = [record["CO2Emission"] for record in data]
         return np.mean(carbon_intensities)

@@ -99,3 +99,13 @@ class TestEnergiDataService(unittest.TestCase):
 
         with self.assertRaises(exceptions.CarbonIntensityFetcherError):
             self.fetcher._emission_prognosis(time_dur=1800)
+    
+    @mock.patch("requests.get")
+    def test_emission_prognosis_bad_json_response(self, mock_get):
+        mock_response = mock.MagicMock()
+        mock_response.ok = False
+        mock_response.json.return_value = ""
+        mock_get.return_value = mock_response
+
+        with self.assertRaises(exceptions.CarbonIntensityFetcherError):
+            self.fetcher._emission_prognosis(time_dur=1800)

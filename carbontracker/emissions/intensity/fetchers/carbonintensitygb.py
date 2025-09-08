@@ -41,8 +41,14 @@ class CarbonIntensityGB(IntensityFetcher):
 
         url += f"/postcode/{postcode}"
         response = requests.get(url)
+
         if not response.ok:
-            raise exceptions.CarbonIntensityFetcherError(response.json())
+            try:
+                errorDetails = response.json()
+            except:
+                errorDetails = "Bad response recieved from api. Could not parse json"
+            raise exceptions.CarbonIntensityFetcherError(errorDetails)
+
         data = response.json()["data"]
 
         # API has a bug s.t. if we query current then we get a list.
@@ -65,8 +71,14 @@ class CarbonIntensityGB(IntensityFetcher):
             url += f"/{from_str}/{to_str}"
 
         response = requests.get(url)
+
         if not response.ok:
-            raise exceptions.CarbonIntensityFetcherError(response.json())
+            try:
+                errorDetails = response.json()
+            except:
+                errorDetails = "Bad response recieved from api. Could not parse json"
+            raise exceptions.CarbonIntensityFetcherError(errorDetails)
+
         carbon_intensity = response.json()["data"][0]["intensity"]["forecast"]
         return carbon_intensity
 
