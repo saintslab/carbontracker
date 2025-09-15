@@ -50,7 +50,17 @@ class TestElectricityMap(unittest.TestCase):
         with self.assertRaises(exceptions.CarbonIntensityFetcherError):
             self.electricity_map._carbon_intensity_by_location(lon=self.g_location.lng, lat=self.g_location.lat)
 
+    @patch("requests.get")
+    def test_carbon_intensity_by_location_json_response_not_ok(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.ok = False
+        mock_response.json.return_value = {"error": "some error"}
+        mock_get.return_value = mock_response
+
+        with self.assertRaises(exceptions.CarbonIntensityFetcherError):
+            self.electricity_map._carbon_intensity_by_location(lon=self.g_location.lng, lat=self.g_location.lat)
     
+
     @patch.object(ElectricityMap, "_carbon_intensity_by_location")
     def test_carbon_intensity(self, mock_carbon_intensity_by_location):
         mock_carbon_intensity_by_location.return_value = 100.0
