@@ -382,6 +382,8 @@ class CarbonTracker:
         self.deleted = False
         self.epoch_counter = 0
 
+        self.set_api_keys(self.api_keys)
+
         try:
             pids = self._get_pids()
             self.logger = loggerutil.Logger(
