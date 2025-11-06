@@ -1,77 +1,77 @@
 import datetime
+from typing import TYPE_CHECKING, List
 
-import requests
 import numpy as np
+import requests
 
 from carbontracker import exceptions
 from carbontracker.emissions.intensity.fetcher import IntensityFetcher
-from carbontracker.emissions.intensity import intensity
+
+if TYPE_CHECKING:
+    from carbontracker.loggerutil import Logger
+
+CURRENT_DATASET = "CO2emis"
+PROGNOSIS_DATASET = "CO2Emis"
+BASE_URL = "https://api.energidataservice.dk/dataset"
 
 
 class EnergiDataService(IntensityFetcher):
+    id = "energidataservice"
+
+    def __init__(self, logger: "Logger"):
+        super().__init__(logger=logger)
+
     def suitable(self, g_location):
-        return g_location.country == "DK"
+        return getattr(g_location, "country", None) == "DK"
 
-    def carbon_intensity(self, g_location, time_dur=None):
-        carbon_intensity = intensity.CarbonIntensity(g_location=g_location)
+    def carbon_intensity(self, g_location, time_dur=None) -> float:
         if time_dur is None:
-            ci = self._emission_current()
-        else:
-            ci = self._emission_prognosis(time_dur=time_dur)
-            carbon_intensity.is_prediction = True
+            return float(self._emission_current())
 
-        carbon_intensity.carbon_intensity = ci
+        return float(self._emission_prognosis(time_dur=time_dur))
 
-        return carbon_intensity
-
-    def _emission_current(self):
-        def url_creator(area):
-            return (
-                'https://api.energidataservice.dk/dataset/CO2emis?filter={"PriceArea":"'
-                + area
-                + '"}'
-            )
-
+    def _emission_current(self) -> float:
         areas = ["DK1", "DK2"]
-        carbon_intensities = []
+        carbon_intensities: List[float] = []
 
         for area in areas:
-            url = url_creator(area)
+            params = f'{{"PriceArea":"{area}"}}'
+            url = f"{BASE_URL}/{CURRENT_DATASET}?filter={params}"
             response = requests.get(url)
 
             if not response.ok:
-                try:
-                    errorDetails = response.json()
-                except:
-                    errorDetails = "Bad response recieved from api. Could not parse json"
-                raise exceptions.CarbonIntensityFetcherError(errorDetails)
+                self._raise_for_bad_response(response)
 
-            carbon_intensities.append(response.json()["records"][0]["CO2Emission"])
-        return np.mean(carbon_intensities)
+            records = response.json()["records"]
+            if not records:
+                raise exceptions.CarbonIntensityFetcherError(
+                    f"No CO2 emission records returned for area {area}."
+                )
 
-    def _emission_prognosis(self, time_dur):
+            carbon_intensities.append(records[0]["CO2Emission"])
+
+        return float(np.mean(carbon_intensities))
+
+    def _emission_prognosis(self, time_dur: int) -> float:
         from_str, to_str = self._interval(time_dur=time_dur)
         url = (
-            "https://api.energidataservice.dk/dataset/CO2Emis?start="
-            + from_str
-            + "&end="
-            + to_str
-            + "&limit=4"
+            f"{BASE_URL}/{PROGNOSIS_DATASET}?start={from_str}&end={to_str}&limit=4"
         )
         response = requests.get(url)
-        
-        if not response.ok:
-            try:
-                errorDetails = response.json()
-            except:
-                errorDetails = "Bad response recieved from api. Could not parse json"
-            raise exceptions.CarbonIntensityFetcherError(errorDetails)
- 
-        data = response.json()["records"]
-        carbon_intensities = [record["CO2Emission"] for record in data]
-        return np.mean(carbon_intensities)
 
-    def _interval(self, time_dur):
+        if not response.ok:
+            self._raise_for_bad_response(response)
+
+        data = response.json()["records"]
+        if not data:
+            raise exceptions.CarbonIntensityFetcherError(
+                "No CO2 emission prognosis data returned."
+            )
+
+        carbon_intensities = [record["CO2Emission"] for record in data]
+        return float(np.mean(carbon_intensities))
+
+    def _interval(self, time_dur: int):
         from_time = datetime.datetime.now(datetime.timezone.utc)
         to_time = from_time + datetime.timedelta(seconds=time_dur)
         from_str = self._nearest_5_min(from_time)
@@ -84,3 +84,10 @@ class EnergiDataService(IntensityFetcher):
             minutes=time.minute % 5, seconds=time.second, microseconds=time.microsecond
         )
         return nearest_5_min.strftime(date_format)
+
+    def _raise_for_bad_response(self, response):
+        try:
+            error_details = response.json()
+        except Exception:  # noqa: BLE001
+            error_details = "Bad response received from API. Could not parse json"
+        raise exceptions.CarbonIntensityFetcherError(error_details)

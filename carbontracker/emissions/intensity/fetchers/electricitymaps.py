@@ -1,42 +1,32 @@
+from typing import Optional
 import requests
 
 from carbontracker import exceptions
 from carbontracker.emissions.intensity.fetcher import IntensityFetcher
-from carbontracker.emissions.intensity import intensity
 from carbontracker.loggerutil import Logger
 
 API_URL = "https://api-access.electricitymaps.com/free-tier/carbon-intensity/latest"
 
 
 class ElectricityMap(IntensityFetcher):
-    _api_key = None
+    id = "electricitymaps"
 
-    def __init__(self, logger: Logger):
+    def __init__(self, logger: Logger, api_key: str):
         self.logger = logger
-
-    @classmethod
-    def set_api_key(cls, key):
-        cls._api_key = key
+        self._api_key = api_key
 
     def suitable(self, g_location):
-        has_key = self._api_key is not None
-        if not has_key:
-            self.logger.err_warn("ElectricityMaps API key not set. Will default to average carbon intensity.")
-        return has_key
-
-    def carbon_intensity(self, g_location, time_dur=None):
-        carbon_intensity = intensity.CarbonIntensity(g_location=g_location)
-
+        return True
+    ## Prediction is not suported for electricityMaps, thus time_dur is not used.
+    def carbon_intensity(self, g_location, time_dur=None) -> float:
         try:
             ci = self._carbon_intensity_by_location(lon=g_location.lng, lat=g_location.lat)
         except:
             ci = self._carbon_intensity_by_location(zone=g_location.country)
 
-        carbon_intensity.carbon_intensity = ci
+        return ci 
 
-        return carbon_intensity
-
-    def _carbon_intensity_by_location(self, lon=None, lat=None, zone=None):
+    def _carbon_intensity_by_location(self, lon=None, lat=None, zone=None) -> float:
         """Retrieves carbon intensity (gCO2eq/kWh) by location.
 
         Note:

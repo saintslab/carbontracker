@@ -4,9 +4,13 @@ import time
 import traceback
 import psutil
 import math
+import json
 from threading import Thread, Event
-from typing import List, Union
+from typing import List, Optional, Union
+import importlib.resources as pkg_resources
 
+from carbontracker.emissions.intensity.fetcher import IntensityFetcher
+from carbontracker.emissions.intensity.intensity import IntensityService, IntensityFetch
 import numpy as np
 from random import randint
 
@@ -16,23 +20,27 @@ from carbontracker import predictor
 from carbontracker import exceptions
 from carbontracker.components import component
 from carbontracker.components.component import Component
-from carbontracker.emissions.intensity import intensity
 from carbontracker.emissions.conversion import co2eq
 from carbontracker.emissions.intensity.fetchers import electricitymaps
+from carbontracker.emissions.intensity.fetchers import energidataservice
+from carbontracker.emissions.intensity.fetchers import carbonintensitygb 
 
 
 class CarbonIntensityThread(Thread):
     """Sleeper thread to update Carbon Intensity every 15 minutes."""
 
-    def __init__(self, logger, stop_event, update_interval: Union[float, int] = 900):
+    def __init__(self, logger, stop_event, intensity_fetcher: Optional[IntensityFetcher] = None, update_interval: Union[float, int] = 900,):
         super(CarbonIntensityThread, self).__init__()
         self.name = "CarbonIntensityThread"
         self.logger = logger
         self.update_interval: Union[float, int] = update_interval
         self.daemon = True
         self.stop_event = stop_event
-        self.carbon_intensities = []
-
+        self.carbon_intensities_fetches : List[IntensityFetch] = []
+        self.carbon_intensity_service = IntensityService(
+            logger=self.logger,
+            intensity_fetcher=intensity_fetcher
+        )
         self.start()
 
     def run(self):
@@ -45,52 +53,47 @@ class CarbonIntensityThread(Thread):
             self.logger.err_warn(err_str)
 
     def _fetch_carbon_intensity(self):
-        ci = intensity.carbon_intensity(self.logger)
-        if (
-            ci.success
-            and isinstance(ci.carbon_intensity, (int, float))
-            and not np.isnan(ci.carbon_intensity)
-        ):
-            self.carbon_intensities.append(ci)
-            self.logger.info(f"Carbon intensity: {ci.carbon_intensity:.2f} gCO2eq/kWh at {ci.address}")
+        ci_fetch = self.carbon_intensity_service.fetch_carbon_intensity(time_duration=None) 
 
-    def predict_carbon_intensity(self, pred_time_dur):
-        ci = intensity.carbon_intensity(self.logger, time_dur=pred_time_dur)
+        if (ci_fetch.is_fetched):
+            self.carbon_intensities_fetches.append(ci_fetch)
+    
+    # Pred_time_dur is the expected remaing duration. The following function aggregates an weighted average across previous observed carbon intensities stored in the self.carbon_intensities, and future carbon intensities (from now to the pred_time_dur), weighted by theire duration, and uses this single weighted average carbon intensity to calculate the carbon emissions.
+    def predict_carbon_intensity(self, pred_time_dur) -> float:
+        new_fetch = self.carbon_intensity_service.fetch_carbon_intensity(time_duration=pred_time_dur)
+        
+
         weighted_intensities = [
-            ci.carbon_intensity for ci in self.carbon_intensities
-        ] + [ci.carbon_intensity]
+            fetch.carbon_intensity for fetch in self.carbon_intensities_fetches
+        ] + [new_fetch.carbon_intensity]
 
         # Account for measured intensities by taking weighted average.
         weight = math.floor(pred_time_dur / self.update_interval)
 
+        # Project the current fetch, into the future, by adding it to the intensity list by the amount of updates that will happen in the remaining time (pred_time_dur)
         for _ in range(weight):
-            weighted_intensities.append(ci.carbon_intensity)
+            weighted_intensities.append(new_fetch.carbon_intensity)
 
-        ci.carbon_intensity = np.mean(weighted_intensities)
-        intensity.set_carbon_intensity_message(ci, pred_time_dur)
+        average_intensity = np.mean(weighted_intensities)
 
-        self.logger.info(ci.message)
-        self.logger.output(ci.message, verbose_level=2)
+        message = self.carbon_intensity_service.generate_logging_message(carbon_intensity_fetch=new_fetch)
 
-        return ci
+        self.logger.info(message)
+        self.logger.output(message, verbose_level=2)
 
-    def average_carbon_intensity(self):
-        if not self.carbon_intensities:
-            ci = intensity.carbon_intensity(self.logger)
-            self.carbon_intensities.append(ci)
+        return average_intensity
 
-        # Ensure that we have some carbon intensities.
-        assert self.carbon_intensities
+    def average_carbon_intensity(self) -> float :
+        if not self.carbon_intensities_fetches:
+            ci = self.carbon_intensity_service.fetch_carbon_intensity(time_duration=None)
+            self.carbon_intensities_fetches.append(ci)
 
-        location = self.carbon_intensities[-1].address
-        intensities = [ci.carbon_intensity for ci in self.carbon_intensities]
+        location = self.carbon_intensities_fetches[-1].address
+        intensities = [ci.carbon_intensity for ci in self.carbon_intensities_fetches]
         avg_intensity = np.mean(intensities)
         msg = (
             f"Average carbon intensity during training was {avg_intensity:.2f}"
             f" gCO2eq/kWh at detected location: {location}."
-        )
-        avg_ci = intensity.CarbonIntensity(
-            carbon_intensity=avg_intensity, message=msg, success=True
         )
 
         self.logger.info(
@@ -98,10 +101,10 @@ class CarbonIntensityThread(Thread):
             f"{self.update_interval} s at detected location {location}: "
             f"{intensities}"
         )
-        self.logger.info(avg_ci.message)
-        self.logger.output(avg_ci.message, verbose_level=2)
+        self.logger.info(msg)
+        self.logger.output(msg, verbose_level=2)
 
-        return avg_ci
+        return avg_intensity 
 
 
 class CarbonTrackerThread(Thread):
@@ -346,6 +349,7 @@ class CarbonTracker:
             sim_gpu_watts (float, optional): Simulated GPU power consumption in Watts. Defaults to None.
             sim_gpu_util (float, optional): Simulated GPU utilization. Defaults to None.
         """
+
         # Add validation for monitor_epochs
         if monitor_epochs != -1:
             if monitor_epochs < epochs_before_pred:
@@ -381,6 +385,7 @@ class CarbonTracker:
         self.sim_gpu_util = sim_gpu_util
         self.deleted = False
         self.epoch_counter = 0
+        self.intensity_fetcher = None
 
         try:
             pids = self._get_pids()
@@ -401,7 +406,9 @@ class CarbonTracker:
             )
             self.intensity_stopper = Event()
             self.intensity_updater = CarbonIntensityThread(
-                self.logger, self.intensity_stopper
+                logger=self.logger, 
+                stop_event=self.intensity_stopper,
+                intensity_fetcher=self._get_fetcher()
             )
         except Exception as e:
             self._handle_error(e)
@@ -456,19 +463,6 @@ class CarbonTracker:
         self.epoch_counter -= 1
         self._output_actual()
         self._delete()
-
-    def set_api_keys(self, api_dict):
-        """Set API keys (given as {name:key}) for carbon intensity fetchers."""
-        try:
-            for name, key in api_dict.items():
-                if name.lower() == "electricitymaps":
-                    electricitymaps.ElectricityMap.set_api_key(key)
-                else:
-                    raise exceptions.FetcherNameError(
-                        f"Invalid API name '{name}' given."
-                    )
-        except Exception as e:
-            self._handle_error(e)
 
     def _handle_error(self, error):
         err_str = traceback.format_exc()
@@ -541,13 +535,13 @@ class CarbonTracker:
             conversions,
         )
 
-    def _co2eq(self, energy_usage, pred_time_dur=None):
+    def _co2eq(self, energy_usage, pred_time_dur=None) -> float:
         """ "Returns the CO2eq (g) of the energy usage (kWh)."""
         if pred_time_dur:
             ci = self.intensity_updater.predict_carbon_intensity(pred_time_dur)
         else:
             ci = self.intensity_updater.average_carbon_intensity()
-        co2eq = energy_usage * ci.carbon_intensity
+        co2eq = energy_usage * ci
         return co2eq
 
     def _user_query(self):
@@ -582,3 +576,87 @@ class CarbonTracker:
         process = psutil.Process()
         pids = [process.pid] + [child.pid for child in process.children(recursive=True)]
         return pids
+
+    def _get_fetcher(self) -> Optional[IntensityFetcher]:
+        """
+        Resolve and initialize an intensity provider based on self.api_keys.
+        Reads display names from carbontracker/config/fetchers.json for clean logging.
+        Returns an initialized IntensityFetcher or None if no valid provider is found.
+        """
+        # Map of supported provider IDs to their constructors
+        PROVIDERS = {
+            "electricitymaps": electricitymaps.ElectricityMap,
+            "carbonintensityGB": carbonintensitygb.CarbonIntensityGB,
+            "energidataservice": energidataservice.EnergiDataService,
+        }
+
+        if self.api_keys is None:
+            self.logger.err_warn("No API keys provided. Skipping intensity provider initialization.")
+            return None
+
+        # Load provider config for nicer display names
+        cfg = {}
+        available_display = None
+        try:
+            import sys, json
+            if sys.version_info < (3, 9):
+                import pkg_resources
+                path = pkg_resources.resource_filename("carbontracker", "config/fetchers.json")
+                with open(path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+            else:
+                import importlib.resources
+                path = importlib.resources.files("carbontracker").joinpath("config", "fetchers.json")
+                with path.open("r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+
+            fetchers_cfg = cfg.get("intensityFetchers", {})
+            available_display = ", ".join(
+                v.get("displayName", v.get("id", k)) for k, v in fetchers_cfg.items()
+            ) or ", ".join(PROVIDERS.keys())
+        except Exception as e:
+            # Continue gracefully with built-in map only
+            self.logger.err_warn(f"Could not read provider config (fetchers.json): {type(e).__name__}: {e}")
+
+        unknown_keys = []
+        initialized_provider = None
+
+        for provider_id, api_key in self.api_keys.items():
+            constructor = PROVIDERS.get(provider_id)
+
+            if not constructor:
+                unknown_keys.append(provider_id)
+                continue
+
+            if not api_key:
+                self.logger.err_warn(f"Empty API key for '{provider_id}'. Skipping this provider.")
+                continue
+
+            # Resolve a friendly display name if available
+            try:
+                provider_name = (
+                    cfg.get("intensityFetchers", {})
+                    .get(provider_id, {})
+                    .get("displayName", provider_id)
+                )
+            except Exception:
+                provider_name = provider_id
+
+            # Try to initialize the provider
+            try:
+                initialized_provider = constructor(logger=self.logger, api_key=api_key)
+                self.logger.err_info(f"Using intensity provider: {provider_name} ('{provider_id}').")
+                return initialized_provider
+            except Exception as e:
+                self.logger.err_critical(
+                    f"Failed to initialize intensity provider '{provider_id}': {type(e).__name__}: {e}"
+                )
+
+        if unknown_keys:
+            msg = f"No matching provider for API keys: {', '.join(unknown_keys)}."
+            if available_display:
+                msg += f" Supported providers: {available_display}."
+            self.logger.err_warn(msg)
+
+        return None
+

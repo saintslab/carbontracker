@@ -1,0 +1,20 @@
+{
+  "version": "2024-30-10",
+  "intensityFetchers": {
+   "electricitymaps":  {   
+      "displayName": "Elictricity Maps API",
+      "description": "Electricity Maps provides global access to electricity mix, prices and carbon intensity. ",
+      "requiredCredentials": [
+        {
+          "name": "apiToken",
+          "hint": "Token from transparency.entsoe.eu",
+          "mask": true
+        }
+      ],
+      "defaults": {
+        "timezone": "Europe/Paris"
+      },
+      "docsUrl": "https://portal.electricitymaps.com/developer-hub/api/getting-started#introduction"
+    }
+}
+}

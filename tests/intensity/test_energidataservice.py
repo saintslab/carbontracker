@@ -7,7 +7,8 @@ from carbontracker import exceptions
 
 class TestEnergiDataService(unittest.TestCase):
     def setUp(self):
-        self.fetcher = energidataservice.EnergiDataService()
+        self.logger = mock.MagicMock()
+        self.fetcher = energidataservice.EnergiDataService(logger=self.logger)
         self.geocoder = mock.MagicMock()
         self.geocoder.country = "DK"
 
@@ -26,8 +27,7 @@ class TestEnergiDataService(unittest.TestCase):
         mock_get.return_value = mock_response
         result = self.fetcher.carbon_intensity(self.geocoder)
 
-        self.assertEqual(result.carbon_intensity, 1.0)
-        self.assertFalse(result.is_prediction)
+        self.assertEqual(result, 1.0)
 
     @mock.patch("requests.get")
     def test_carbon_intensity_with_time_dur(self, mock_get):
@@ -45,8 +45,7 @@ class TestEnergiDataService(unittest.TestCase):
 
         result = self.fetcher.carbon_intensity(self.geocoder, time_dur=1800)
 
-        self.assertEqual(result.carbon_intensity, 2.5)
-        self.assertTrue(result.is_prediction)
+        self.assertEqual(result, 2.5)
 
     @mock.patch("requests.get")
     def test_nearest_5_min(self, mock_get):

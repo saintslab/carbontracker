@@ -6,7 +6,8 @@ from carbontracker import exceptions
 
 class TestCarbonIntensityGB(TestCase):
     def setUp(self):
-        self.fetcher = carbonintensitygb.CarbonIntensityGB()
+        self.logger = mock.MagicMock()
+        self.fetcher = carbonintensitygb.CarbonIntensityGB(logger=self.logger)
 
     def test_suitable_with_gb_location(self):
         g_location = mock.MagicMock(country="GB")
@@ -159,16 +160,22 @@ class TestCarbonIntensityGB(TestCase):
     def test_carbon_intensity_with_postal(self, mock_get):
         mock_response = mock.MagicMock()
         mock_response.ok = True
-        mock_response.json.return_value = {"data": [{"intensity": {"forecast": 250}}]}
+        mock_response.json.return_value = {
+            "data": [
+                {
+                    "data": [
+                        {"intensity": {"forecast": 250}},
+                    ]
+                }
+            ]
+        }
         mock_get.return_value = mock_response
 
-        mock_get.__getitem__.return_value = mock_response
         g_location = mock.MagicMock(postal="AB12 3CD", country="GB")
         time_dur = 3600
 
-        carbon_intensity_obj = self.fetcher.carbon_intensity(g_location, time_dur)
-        self.assertEqual(carbon_intensity_obj.carbon_intensity, 250)
-        self.assertEqual(carbon_intensity_obj.is_prediction, True)
+        carbon_intensity_value = self.fetcher.carbon_intensity(g_location, time_dur)
+        self.assertEqual(carbon_intensity_value, 250)
 
     @mock.patch(
         "carbontracker.emissions.intensity.fetchers.carbonintensitygb.requests.get"
@@ -176,15 +183,20 @@ class TestCarbonIntensityGB(TestCase):
     def test_carbon_intensity_without_postal(self, mock_get):
         mock_response = mock.MagicMock()
         mock_response.ok = True
-        mock_response.json.return_value = {"data": [{"intensity": {"forecast": 250}}]}
+        mock_response.json.return_value = {
+            "data": [
+                {
+                    "intensity": {"forecast": 250},
+                }
+            ]
+        }
         mock_get.return_value = mock_response
 
         g_location = mock.MagicMock(country="GB")
         time_dur = 3600
 
-        carbon_intensity_obj = self.fetcher.carbon_intensity(g_location, time_dur)
-        self.assertEqual(carbon_intensity_obj.carbon_intensity, 250)
-        self.assertEqual(carbon_intensity_obj.is_prediction, True)
+        carbon_intensity_value = self.fetcher.carbon_intensity(g_location, time_dur)
+        self.assertEqual(carbon_intensity_value, 250)
 
     @mock.patch(
         "carbontracker.emissions.intensity.fetchers.carbonintensitygb.requests.get"
@@ -192,10 +204,18 @@ class TestCarbonIntensityGB(TestCase):
     def test_carbon_intensity_gb_regional_without_time_dur(self, mock_get):
         mock_response = mock.MagicMock()
         mock_response.ok = True
-        mock_response.json.return_value = {"data": [{"intensity": {"forecast": 250}}]}
+        mock_response.json.return_value = {
+            "data": [
+                {
+                    "data": [
+                        {"intensity": {"forecast": 250}},
+                    ]
+                }
+            ]
+        }
         mock_get.return_value = mock_response
 
         g_location = mock.MagicMock(postal="AB12 3CD", country="GB")
 
-        carbon_intensity_obj = self.fetcher.carbon_intensity(g_location, None)
-        self.assertEqual(carbon_intensity_obj.carbon_intensity, 250)
+        carbon_intensity_value = self.fetcher.carbon_intensity(g_location, None)
+        self.assertEqual(carbon_intensity_value, 250)

@@ -166,3 +166,8 @@ cython_debug/
 # macOS
 .DS_Store
 /tests/internal/
+
+
+# local developments
+/test_logs/
+/logs/

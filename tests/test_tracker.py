@@ -7,6 +7,7 @@ from unittest import mock, skipIf
 from unittest.mock import Mock, patch, MagicMock
 from threading import Event
 from typing import List, Any
+from carbontracker.emissions.intensity.intensity import IntensityFetch
 import numpy as np
 
 from carbontracker import exceptions, constants
@@ -30,67 +31,67 @@ class TestCarbonIntensityThread(unittest.TestCase):
         self.assertEqual(thread.name, "CarbonIntensityThread")
         self.assertEqual(thread.daemon, True)
 
-    @patch("carbontracker.tracker.intensity")
-    def test_fetch_carbon_intensity_success(self, mock_intensity):
-        mock_intensity.carbon_intensity.return_value.success = True
-        mock_intensity.carbon_intensity.return_value.carbon_intensity = 10.5
+    @patch("carbontracker.tracker.IntensityService")
+    def test_initial_fetch_carbon_intensity_on_success(self, mock_intensity_service):
+
+        intensity_mock_fetch = Mock()
+        intensity_mock_fetch.is_fetched = True
+        intensity_mock_fetch.carbon_intensity = 10.5
+
+        service_instance = mock_intensity_service.return_value
+        service_instance.fetch_carbon_intensity.return_value = intensity_mock_fetch 
+        thread = CarbonIntensityThread(self.logger, self.stop_event)
+        self.assertEqual(thread.carbon_intensities_fetches[0].carbon_intensity, 10.5)
+ 
+    @patch("carbontracker.tracker.IntensityService")
+    def test_initial_fetch_carbon_intensity_on_failure(self, mock_intensity_service):
+
+        intensity_mock_fetch = Mock()
+        intensity_mock_fetch.is_fetched = False 
+        intensity_mock_fetch.carbon_intensity = 10.5
+
+        service_instance = mock_intensity_service.return_value
+        service_instance.fetch_carbon_intensity.return_value = intensity_mock_fetch 
+        thread = CarbonIntensityThread(self.logger, self.stop_event)
+        self.assertEqual(len(thread.carbon_intensities_fetches),0)
+       
+
+
+    @patch("carbontracker.tracker.IntensityService")
+    def test_predict_carbon_intensity(self,mock_intensity_service):
+        mock_fetch = Mock()
+        mock_fetch.carbon_intensity = 10.5
+
+        mock_intensity_service.return_value.fetch_carbon_intensity.return_value = mock_fetch 
 
         thread = CarbonIntensityThread(self.logger, self.stop_event)
-        thread._fetch_carbon_intensity()
-
-        self.assertEqual(thread.carbon_intensities[0].carbon_intensity, 10.5)
-
-    @patch("carbontracker.tracker.intensity")
-    def test_fetch_carbon_intensity_failure(self, mock_intensity):
-        mock_intensity.carbon_intensity.return_value.success = False
-
-        thread = CarbonIntensityThread(self.logger, self.stop_event)
-        thread._fetch_carbon_intensity()
-
-        self.assertEqual(len(thread.carbon_intensities), 0)
-
-    @patch("carbontracker.tracker.intensity.CarbonIntensity")
-    @patch("carbontracker.tracker.intensity")
-    def test_predict_carbon_intensity(self, mock_intensity, mock_carbon_intensity):
-        mock_ci_return = Mock()
-        mock_ci_return.success = True
-        mock_ci_return.carbon_intensity = 10.5
-
-        mock_intensity.carbon_intensity.return_value = mock_ci_return
-
-        mock_carbon_intensity.return_value = mock_ci_return
-
-        thread = CarbonIntensityThread(self.logger, self.stop_event)
-        thread.carbon_intensities.append(mock_ci_return)
-
-        pred_time_dur = 1000
+        pred_time_dur = 1800
         ci = thread.predict_carbon_intensity(pred_time_dur)
 
-        self.assertEqual(ci.carbon_intensity, 10.5)
-        mock_intensity.set_carbon_intensity_message.assert_called_with(
-            ci, pred_time_dur
-        )
+        self.assertEqual(ci, 10.5)
+
+        mock_intensity_service.return_value.generate_logging_message.assert_called_with(carbon_intensity_fetch=mock_fetch)
         self.logger.info.assert_called()
         self.logger.output.assert_called()
 
-    @patch("carbontracker.tracker.intensity.CarbonIntensity")
-    @patch("carbontracker.tracker.intensity")
-    def test_average_carbon_intensity(self, mock_intensity, mock_carbon_intensity):
-        mock_ci_return = Mock()
-        mock_ci_return.success = True
-        mock_ci_return.carbon_intensity = 10.5
-        mock_ci_return.address = "test_address"
 
-        mock_intensity.carbon_intensity.return_value = mock_ci_return
+    @patch("carbontracker.emissions.intensity.intensity.IntensityFetch")
+    def test_average_carbon_intensity(self, carbon_intensity_fetch):
+        mock_carbon_intensity_fetch = Mock()
+        mock_carbon_intensity_fetch.carbon_intensity = 10.5
+        mock_carbon_intensity_fetch.address = "test_address"
 
-        mock_carbon_intensity.return_value = mock_ci_return
-
+        mock_carbon_intensity_fetch_2 = Mock()
+        mock_carbon_intensity_fetch_2.carbon_intensity = 13.0 
+        mock_carbon_intensity_fetch_2.address = "test_address"
         thread = CarbonIntensityThread(self.logger, self.stop_event)
-        thread.carbon_intensities.append(mock_ci_return)
+
+        thread.carbon_intensities_fetches = []
+        thread.carbon_intensities_fetches.append(mock_carbon_intensity_fetch)
+        thread.carbon_intensities_fetches.append(mock_carbon_intensity_fetch_2)
 
         avg_ci = thread.average_carbon_intensity()
-
-        self.assertEqual(avg_ci.carbon_intensity, 10.5)
+        self.assertEqual(avg_ci, 11.75)
 
     @patch("carbontracker.tracker.CarbonIntensityThread._fetch_carbon_intensity")
     def test_run_with_fetch_exception(self, mock_fetch_carbon_intensity):
@@ -110,21 +111,20 @@ class TestCarbonIntensityThread(unittest.TestCase):
 
         mock_logger = MagicMock()
         stop_event = threading.Event()
-        CarbonIntensityThread(mock_logger, stop_event, update_interval)
+        CarbonIntensityThread(mock_logger, stop_event, None,update_interval)
         time.sleep(wait_duration)
 
         assert mock_fetch_carbon_intensity.call_count > 1
 
-    @patch("carbontracker.tracker.intensity.carbon_intensity")
-    def test_average_carbon_intensity_empty_intensities(self, mock_carbon_intensity):
+    def test_average_carbon_intensity_empty_intensities(self) :
         mock_logger = MagicMock()
         stop_event = threading.Event()
 
         thread = CarbonIntensityThread(mock_logger, stop_event)
-        thread.carbon_intensities = []
+        thread.carbon_intensities_fetches = []
         thread.average_carbon_intensity()
 
-        assert len(thread.carbon_intensities) == 1
+        assert len(thread.carbon_intensities_fetches) == 1
 
 
 class TestCarbonTrackerThread(unittest.TestCase):
