@@ -62,7 +62,7 @@ class CarbonIntensityThread(Thread):
 
     def predict_carbon_intensity(self, pred_time_dur) -> float:
         new_fetch = self.carbon_intensity_service.fetch_carbon_intensity(time_duration=pred_time_dur)
-        
+
 
         weighted_intensities = [
             fetch.carbon_intensity for fetch in self.carbon_intensities_fetches
@@ -256,8 +256,7 @@ class CarbonTracker:
 
     Args:
         epochs (int): Total epochs of your training loop.
-        api_keys (dict, optional): Dictionary of Carbon Intensity API keys following the {name:key} format. Can also be set using `CarbonTracker.set_api_keys`
-
+        api_keys (dict, optional): Dictionary of Carbon Intensity API keys following the {name:key} format. 
             Example: `{ \\"electricitymaps\\": \\"abcdefg\\" }`
         epochs_before_pred (int, optional): Epochs to monitor before outputting predicted consumption. Set to -1 for all epochs. Set to 0 for no prediction.
         monitor_epochs (int, optional): Total number of epochs to monitor. Outputs actual consumption when reached. Set to -1 for all epochs. Cannot be less than `epochs_before_pred` or equal to 0.
@@ -461,6 +460,10 @@ class CarbonTracker:
         self._output_actual()
         self._delete()
 
+    def set_api_keys(self, api_keys):
+        self.api_keys = api_keys
+        self._get_fetcher()
+
     def _handle_error(self, error):
         err_str = traceback.format_exc()
         if self.ignore_errors:
@@ -508,7 +511,7 @@ class CarbonTracker:
             )
         else:
             self._output_energy(
-                f"Actual consumption for {self.epoch_counter+1} epoch(s):",
+                f"Actual consumption for {self.epoch_counter} epoch(s):",
                 time,
                 energy,
                 _co2eq,
@@ -639,7 +642,6 @@ class CarbonTracker:
             except Exception:
                 provider_name = provider_id
 
-            # Try to initialize the provider
             try:
                 initialized_provider = constructor(logger=self.logger, api_key=api_key)
                 self.logger.err_info(f"Using intensity provider: {provider_name} ('{provider_id}').")
@@ -653,7 +655,7 @@ class CarbonTracker:
             msg = f"No matching provider for API keys: {', '.join(unknown_keys)}."
             if available_display:
                 msg += f" Supported providers: {available_display}."
-            self.logger.err_warn(msg)
+            self.logger.err_critical(msg)
+            sys.exit(70)
 
         return None
-

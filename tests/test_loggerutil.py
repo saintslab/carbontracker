@@ -162,7 +162,7 @@ class TestLoggerUtil(unittest.TestCase):
 
         logger.output(test_message)
 
-        mock_info.assert_called_once_with(f"CarbonTracker: {test_message}")
+        mock_info.assert_called_once_with(f"CarbonTracker: {test_message}", extra={'verbose_level':0})
 
     def test_multiple_loggers(self):
         logger1 = loggerutil.Logger(logger_id="1")

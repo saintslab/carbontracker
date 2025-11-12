@@ -618,7 +618,7 @@ class TestCarbonTracker(unittest.TestCase):
             "\tEnergy:\t60.000000 kWh\n"
             "\tCO2eq:\t150.000000 g"
             "\n\tThis is equivalent to:\n"
-            "\t1.395349 km travelled by car"
+            "\t1.404494 km travelled by car"
         )
 
         self.mock_logger.output.assert_called_once_with(
@@ -648,7 +648,7 @@ class TestCarbonTracker(unittest.TestCase):
             "\tEnergy:\t60.000000 kWh\n"
             "\tCO2eq:\t150.000000 g"
             "\n\tThis is equivalent to:\n"
-            "\t1.395349 km travelled by car"
+            "\t1.404494 km travelled by car"
         )
 
         self.mock_logger.output.assert_called_once_with(
@@ -681,7 +681,7 @@ class TestCarbonTracker(unittest.TestCase):
             "\tEnergy:\t100.000000 kWh\n"
             "\tCO2eq:\t150.000000 g"
             "\n\tThis is equivalent to:\n"
-            "\t1.395349 km travelled by car"
+            "\t1.404494 km travelled by car"
         )
 
         self.mock_logger.output.assert_called_once_with(
@@ -692,7 +692,7 @@ class TestCarbonTracker(unittest.TestCase):
         assert self.tracker is not None
         intensity_updater = MagicMock()
         intensity_updater.predict_carbon_intensity = MagicMock(
-            return_value=MagicMock(carbon_intensity=0.5)
+            return_value=0.5
         )
 
         energy_usage = 100
@@ -709,7 +709,7 @@ class TestCarbonTracker(unittest.TestCase):
         assert self.tracker is not None
         intensity_updater = MagicMock()
         intensity_updater.average_carbon_intensity = MagicMock(
-            return_value=MagicMock(carbon_intensity=0.5)
+            return_value=0.5
         )
 
         energy_usage = 100
@@ -927,6 +927,76 @@ class TestCarbonTracker(unittest.TestCase):
         self.assertEqual(tracker.sim_gpu_watts, 200)
         self.assertEqual(tracker.sim_gpu_util, 0.8)
 
+
+class TestCarbonTrackerFetcherInitialization(unittest.TestCase):
+    def setUp(self):
+        self.mock_logger = MagicMock()
+        self.mock_tracker_thread_instance = MagicMock()
+        self.mock_intensity_thread_instance = MagicMock()
+        self.patcher_logger = patch(
+            "carbontracker.tracker.loggerutil.Logger", return_value=self.mock_logger
+        )
+        self.patcher_tracker_thread = patch(
+            "carbontracker.tracker.CarbonTrackerThread",
+            return_value=self.mock_tracker_thread_instance,
+        )
+        self.patcher_intensity_thread = patch("carbontracker.tracker.CarbonIntensityThread")
+        self.patcher_get_pids = patch(
+            "carbontracker.tracker.CarbonTracker._get_pids", return_value=[]
+        )
+        self.patcher_components = patch(
+            "carbontracker.tracker.component.create_components", return_value=[]
+        )
+
+        self.patcher_logger.start()
+        self.patcher_tracker_thread.start()
+        self.mock_intensity_thread_class = self.patcher_intensity_thread.start()
+        self.mock_intensity_thread_class.return_value = self.mock_intensity_thread_instance
+        self.patcher_get_pids.start()
+        self.patcher_components.start()
+
+    def tearDown(self):
+        self.patcher_components.stop()
+        self.patcher_get_pids.stop()
+        self.patcher_intensity_thread.stop()
+        self.patcher_tracker_thread.stop()
+        self.patcher_logger.stop()
+
+    def _build_tracker(self, api_keys):
+        return CarbonTracker(epochs=1, api_keys=api_keys)
+
+    def _assert_intensity_fetcher_used(self, provider_key, patch_target, api_key):
+        expected_fetcher = MagicMock(name=f"{provider_key}_fetcher")
+        with patch(patch_target, return_value=expected_fetcher) as mock_constructor:
+            self._build_tracker({provider_key: api_key})
+
+        mock_constructor.assert_called_once_with(logger=self.mock_logger, api_key=api_key)
+        self.mock_intensity_thread_class.assert_called_once()
+        intensity_fetcher = self.mock_intensity_thread_class.call_args.kwargs[
+            "intensity_fetcher"
+        ]
+        self.assertIs(intensity_fetcher, expected_fetcher)
+
+    def test_electricitymaps_api_key_attaches_fetcher(self):
+        self._assert_intensity_fetcher_used(
+            "electricitymaps",
+            "carbontracker.tracker.electricitymaps.ElectricityMap",
+            "electric_key",
+        )
+
+    def test_carbonintensitygb_api_key_attaches_fetcher(self):
+        self._assert_intensity_fetcher_used(
+            "carbonintensityGB",
+            "carbontracker.tracker.carbonintensitygb.CarbonIntensityGB",
+            "gb_key",
+        )
+
+    def test_energidataservice_api_key_attaches_fetcher(self):
+        self._assert_intensity_fetcher_used(
+            "energidataservice",
+            "carbontracker.tracker.energidataservice.EnergiDataService",
+            "dk_key",
+        )
 
 if __name__ == "__main__":
     unittest.main()
