@@ -27,7 +27,7 @@ dependencies = [
     "py-cpuinfo",
     "matplotlib",
     "seaborn",
-    "reportlab>=3.6.14,<4.0.0"  # Pin to a version compatible with Python 3.7
+    "reportlab==3.6.13"  # Pin to a version compatible with Python 3.7
 ]
 dynamic = ["version"]
 
