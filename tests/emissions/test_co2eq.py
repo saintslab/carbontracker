@@ -10,7 +10,6 @@ class TestConversion(unittest.TestCase):
 
         expected = [(4.681647940074907, 'km travelled by car')]
         actual = convert(500)
-        print(actual)
         self.assertAlmostEqual(expected[0][0], actual[0][0], places=5)
         self.assertEqual(expected[0][1], actual[0][1])
 
