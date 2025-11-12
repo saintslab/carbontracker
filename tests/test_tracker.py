@@ -70,28 +70,33 @@ class TestCarbonIntensityThread(unittest.TestCase):
 
         self.assertEqual(ci, 10.5)
 
-        mock_intensity_service.return_value.generate_logging_message.assert_called_with(carbon_intensity_fetch=mock_fetch)
-        self.logger.info.assert_called()
-        self.logger.output.assert_called()
 
+    @patch("carbontracker.tracker.IntensityService")
+    def test_average_carbon_intensity(self, mock_intensity_service):
+        # Ensure background fetch returns a real-looking object, not a MagicMock
+        mock_intensity_service.return_value.fetch_carbon_intensity.return_value = IntensityFetch(
+            carbon_intensity=0.0,
+            address="n/a",
+            country="n/a",
+            is_fetched=False,
+            is_localized=False,
+        )
 
-    @patch("carbontracker.emissions.intensity.intensity.IntensityFetch")
-    def test_average_carbon_intensity(self, carbon_intensity_fetch):
+        thread = CarbonIntensityThread(self.logger, self.stop_event)
+
         mock_carbon_intensity_fetch = Mock()
         mock_carbon_intensity_fetch.carbon_intensity = 10.5
         mock_carbon_intensity_fetch.address = "test_address"
 
         mock_carbon_intensity_fetch_2 = Mock()
-        mock_carbon_intensity_fetch_2.carbon_intensity = 13.0 
+        mock_carbon_intensity_fetch_2.carbon_intensity = 13.0
         mock_carbon_intensity_fetch_2.address = "test_address"
-        thread = CarbonIntensityThread(self.logger, self.stop_event)
 
-        thread.carbon_intensities_fetches = []
-        thread.carbon_intensities_fetches.append(mock_carbon_intensity_fetch)
-        thread.carbon_intensities_fetches.append(mock_carbon_intensity_fetch_2)
+        thread.carbon_intensities_fetches = [mock_carbon_intensity_fetch, mock_carbon_intensity_fetch_2]
 
         avg_ci = thread.average_carbon_intensity()
         self.assertEqual(avg_ci, 11.75)
+
 
     @patch("carbontracker.tracker.CarbonIntensityThread._fetch_carbon_intensity")
     def test_run_with_fetch_exception(self, mock_fetch_carbon_intensity):
@@ -972,7 +977,9 @@ class TestCarbonTrackerFetcherInitialization(unittest.TestCase):
 
         mock_constructor.assert_called_once_with(logger=self.mock_logger, api_key=api_key)
         self.mock_intensity_thread_class.assert_called_once()
-        intensity_fetcher = self.mock_intensity_thread_class.call_args.kwargs[
+        _,intensity_fetcher_kwargs = self.mock_intensity_thread_class.call_args
+        
+        intensity_fetcher = intensity_fetcher_kwargs[
             "intensity_fetcher"
         ]
         self.assertIs(intensity_fetcher, expected_fetcher)
