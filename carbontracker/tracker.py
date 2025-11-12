@@ -60,7 +60,6 @@ class CarbonIntensityThread(Thread):
             self.logger.info(f"Carbon intensity fetched: {ci_fetch.carbon_intensity:.2f} gCO2/kWh at {ci_fetch.address}")
 
 
-    # Pred_time_dur is the expected remaing duration. The following function aggregates an weighted average across previous observed carbon intensities stored in the self.carbon_intensities, and future carbon intensities (from now to the pred_time_dur), weighted by theire duration, and uses this single weighted average carbon intensity to calculate the carbon emissions.
     def predict_carbon_intensity(self, pred_time_dur) -> float:
         new_fetch = self.carbon_intensity_service.fetch_carbon_intensity(time_duration=pred_time_dur)
         
@@ -69,10 +68,8 @@ class CarbonIntensityThread(Thread):
             fetch.carbon_intensity for fetch in self.carbon_intensities_fetches
         ] + [new_fetch.carbon_intensity]
 
-        # Account for measured intensities by taking weighted average.
         weight = math.floor(pred_time_dur / self.update_interval)
 
-        # Project the current fetch, into the future, by adding it to the intensity list by the amount of updates that will happen in the remaining time (pred_time_dur)
         for _ in range(weight):
             weighted_intensities.append(new_fetch.carbon_intensity)
 
