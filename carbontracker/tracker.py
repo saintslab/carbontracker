@@ -29,7 +29,7 @@ from carbontracker.emissions.intensity.fetchers import carbonintensitygb
 class CarbonIntensityThread(Thread):
     """Sleeper thread to update Carbon Intensity every 15 minutes."""
 
-    def __init__(self, logger, stop_event, intensity_fetcher: Optional[IntensityFetcher] = None, update_interval: Union[float, int] = 900,):
+    def __init__(self, logger : loggerutil.Logger, stop_event, intensity_fetcher: Optional[IntensityFetcher] = None, update_interval: Union[float, int] = 900,):
         super(CarbonIntensityThread, self).__init__()
         self.name = "CarbonIntensityThread"
         self.logger = logger
@@ -57,7 +57,9 @@ class CarbonIntensityThread(Thread):
 
         if (ci_fetch.is_fetched):
             self.carbon_intensities_fetches.append(ci_fetch)
-    
+            self.logger.info(f"Carbon intensity fetched: {ci_fetch.carbon_intensity:.2f} gCO2/kWh at {ci_fetch.address}")
+
+
     # Pred_time_dur is the expected remaing duration. The following function aggregates an weighted average across previous observed carbon intensities stored in the self.carbon_intensities, and future carbon intensities (from now to the pred_time_dur), weighted by theire duration, and uses this single weighted average carbon intensity to calculate the carbon emissions.
     def predict_carbon_intensity(self, pred_time_dur) -> float:
         new_fetch = self.carbon_intensity_service.fetch_carbon_intensity(time_duration=pred_time_dur)
@@ -75,13 +77,8 @@ class CarbonIntensityThread(Thread):
             weighted_intensities.append(new_fetch.carbon_intensity)
 
         average_intensity = np.mean(weighted_intensities)
-
-        message = self.carbon_intensity_service.generate_logging_message(carbon_intensity_fetch=new_fetch)
-
-        self.logger.info(message)
-        self.logger.output(message, verbose_level=2)
-
-        return average_intensity
+        
+        return float(average_intensity)
 
     def average_carbon_intensity(self) -> float :
         if not self.carbon_intensities_fetches:
@@ -91,20 +88,20 @@ class CarbonIntensityThread(Thread):
         location = self.carbon_intensities_fetches[-1].address
         intensities = [ci.carbon_intensity for ci in self.carbon_intensities_fetches]
         avg_intensity = np.mean(intensities)
+
         msg = (
             f"Average carbon intensity during training was {avg_intensity:.2f}"
-            f" gCO2eq/kWh at detected location: {location}."
-        )
-
+            f" gCO2eq/kWh. " 
+        )    
+    
         self.logger.info(
             "Carbon intensities (gCO2eq/kWh) fetched every "
             f"{self.update_interval} s at detected location {location}: "
             f"{intensities}"
         )
-        self.logger.info(msg)
-        self.logger.output(msg, verbose_level=2)
+        self.logger.output(msg, verbose_level=1)
 
-        return avg_intensity 
+        return float(avg_intensity)
 
 
 class CarbonTrackerThread(Thread):
@@ -328,7 +325,7 @@ class CarbonTracker:
         """Initialize CarbonTracker.
 
         Args:
-            epochs (int): Number of epochs to monitor.
+            epochs (int): Total epochs of your training loop.
             epochs_before_pred (int, optional): Number of epochs to monitor before making predictions. Defaults to 1.
             monitor_epochs (int, optional): Number of epochs to monitor. Defaults to -1.
             update_interval (int, optional): Interval in seconds between measurements. Defaults to 1.
@@ -356,7 +353,9 @@ class CarbonTracker:
                 raise ValueError("monitor_epochs cannot be less than epochs_before_pred")
             if monitor_epochs == 0:
                 raise ValueError("monitor_epochs cannot be zero")
-
+        else:
+            ## Default is to simply monitor all epochs
+            monitor_epochs = epochs
         # Validate simulated component configurations
         if sim_cpu is not None and sim_cpu_tdp is None:
             raise ValueError("When using simulated CPU (sim_cpu), you must also specify the CPU TDP (sim_cpu_tdp)")
@@ -454,6 +453,7 @@ class CarbonTracker:
         stopping, where not all monitor_epochs have been run."""
         if self.deleted:
             return
+
         self.logger.info(
             f"Training was interrupted before all {self.monitor_epochs} epochs"
             " were monitored."
@@ -511,7 +511,7 @@ class CarbonTracker:
             )
         else:
             self._output_energy(
-                f"Actual consumption for {self.epoch_counter} epoch(s):",
+                f"Actual consumption for {self.epoch_counter+1} epoch(s):",
                 time,
                 energy,
                 _co2eq,

@@ -5,7 +5,7 @@ import numpy as np
 import requests
 
 from carbontracker import exceptions
-from carbontracker.emissions.intensity.fetcher import IntensityFetcher
+from carbontracker.emissions.intensity.fetcher import IntensityFetch, IntensityFetcher
 
 if TYPE_CHECKING:
     from carbontracker.loggerutil import Logger
@@ -24,11 +24,21 @@ class EnergiDataService(IntensityFetcher):
     def suitable(self, g_location):
         return getattr(g_location, "country", None) == "DK"
 
-    def carbon_intensity(self, g_location, time_dur=None) -> float:
+    def fetch_carbon_intensity(self, g_location, time_dur=None) -> IntensityFetch:
         if time_dur is None:
-            return float(self._emission_current())
+            ci = float(self._emission_current())
+        else: 
+            ci = float(self._emission_prognosis(time_dur=time_dur))
 
-        return float(self._emission_prognosis(time_dur=time_dur))
+        return IntensityFetch(
+            carbon_intensity=ci,
+            address=g_location.address,
+            country=g_location.country,
+            is_fetched=True,
+            is_localized=True,
+            is_prediction= True if time_dur is not None else False,
+            time_duration=time_dur,
+        )
 
     def _emission_current(self) -> float:
         areas = ["DK1", "DK2"]

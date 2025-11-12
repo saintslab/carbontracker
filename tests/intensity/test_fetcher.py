@@ -13,4 +13,4 @@ class TestIntensityFetcher(TestCase):
         fetcher = IntensityFetcher(logger = mock.Mock())
 
         with self.assertRaises(NotImplementedError):
-            fetcher.carbon_intensity(mock.MagicMock())
+            fetcher.fetch_carbon_intensity(mock.MagicMock())

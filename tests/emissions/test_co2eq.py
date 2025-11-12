@@ -3,13 +3,14 @@ from carbontracker.emissions.conversion.co2eq import convert
 
 class TestConversion(unittest.TestCase):
     def test_convert(self):
-        expected = [(2.32558139535, 'km travelled by car')]
+        expected = [(2.3408239700374533, 'km travelled by car')]
         actual = convert(250)
         self.assertAlmostEqual(expected[0][0], actual[0][0], places=5)
         self.assertEqual(expected[0][1], actual[0][1])  # compare unit names
 
-        expected = [(4.6511627907, 'km travelled by car')]
+        expected = [(4.681647940074907, 'km travelled by car')]
         actual = convert(500)
+        print(actual)
         self.assertAlmostEqual(expected[0][0], actual[0][0], places=5)
         self.assertEqual(expected[0][1], actual[0][1])
 

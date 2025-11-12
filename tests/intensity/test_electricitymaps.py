@@ -63,18 +63,18 @@ class TestElectricityMap(unittest.TestCase):
     def test_carbon_intensity(self, mock_carbon_intensity_by_location):
         mock_carbon_intensity_by_location.return_value = 100.0
 
-        result = self.electricity_map.carbon_intensity(self.g_location)
+        intensity_fetch = self.electricity_map.fetch_carbon_intensity(self.g_location)
 
-        self.assertEqual(result, 100.0)
+        self.assertEqual(intensity_fetch.carbon_intensity, 100.0)
 
     @patch.object(ElectricityMap, "_carbon_intensity_by_location")
     def test_carbon_intensity_with_exception(self, mock_carbon_intensity_by_location):
         mock_carbon_intensity_by_location.side_effect = [Exception(), 25.0]
 
-        result = self.electricity_map.carbon_intensity(self.g_location)
+        intensity_fetch = self.electricity_map.fetch_carbon_intensity(self.g_location)
 
         mock_carbon_intensity_by_location.assert_called_with(zone=self.g_location.country)
-        self.assertEqual(result, 25.0)
+        self.assertEqual(intensity_fetch.carbon_intensity, 25.0)
 
 
 

@@ -18,8 +18,8 @@ class TestIntensity(unittest.TestCase):
         mock_location.address = "Sample Address"
         mock_location.country = "US"
         mock_geocoder_ip.return_value = mock_location
-
-        service = IntensityService(logger=Mock())
+        logger = Mock()
+        service = IntensityService(logger=logger)
         default_intensity_fetch = service.default_carbon_intensity
 
         # importlib.resources.files was introduced in Python 3.9 and replaces deprecated pkg_resource.resources
@@ -35,17 +35,60 @@ class TestIntensity(unittest.TestCase):
         expected_intensity = intensity_row["Carbon intensity of electricity (gCO2eq/kWh)"]
 
         self.assertEqual(default_intensity_fetch.carbon_intensity, expected_intensity)
-        self.assertIn("Defaulted to average carbon intensity", service.generate_logging_message(carbon_intensity_fetch=default_intensity_fetch))
+
+
+        msg =     (f"No carbon intensity provider specified. "
+                    f"Using average carbon intensity for {mock_location.country}: "
+                    f"{expected_intensity:.2f} gCO2eq/kWh.")
+        logger.err_warn.assert_called_with(msg)
+
+        
+    
+    @patch("carbontracker.emissions.intensity.fetchers.electricitymaps.ElectricityMap.fetch_carbon_intensity")
+    @patch("geocoder.ip")
+    def test_get_default_intensity_success_with_fetcher(self, mock_geocoder_ip, mock_fetcher):
+        mock_location = MagicMock()
+        mock_location.ok = True 
+        mock_location.address = "Sample Address"
+        mock_location.country = "US"
+        mock_geocoder_ip.return_value = mock_location
+        logger = Mock()
+        service = IntensityService(logger=logger, intensity_fetcher=mock_fetcher)
+        default_intensity_fetch = service.default_carbon_intensity
+
+        # importlib.resources.files was introduced in Python 3.9 and replaces deprecated pkg_resource.resources
+        if sys.version_info < (3,9):
+            import pkg_resources
+            carbon_intensities_df = pd.read_csv(pkg_resources.resource_filename("carbontracker", "data/carbon-intensities.csv"))
+        else:
+            import importlib.resources
+            ref = importlib.resources.files("carbontracker") / "data/carbon-intensities.csv"
+            with importlib.resources.as_file(ref) as path:
+                carbon_intensities_df = pd.read_csv(path)
+        intensity_row = carbon_intensities_df[carbon_intensities_df["alpha-2"] == mock_location.country].iloc[0]
+        expected_intensity = intensity_row["Carbon intensity of electricity (gCO2eq/kWh)"]
+
+        self.assertEqual(default_intensity_fetch.carbon_intensity, expected_intensity)
+        logger.err_warn.assert_not_called()
+
+
 
     @patch("geocoder.ip")
-    def test_get_default_intensity_location_failure(self, mock_geocoder_ip):
+    def test_get_default_intensity_location_failure_without_fetcher(self, mock_geocoder_ip):
         mock_geocoder_ip.return_value.ok = False
-
-        service = IntensityService(logger=Mock())
+        logger = Mock()
+        service = IntensityService(logger=logger, intensity_fetcher=None)
         default_intensity_fetch = service.default_carbon_intensity
 
         self.assertEqual(default_intensity_fetch.carbon_intensity, constants.WORLD_AVG_CARBON_INTENSITY)
-        self.assertIn("Defaulted to average global carbon intensity", service.generate_logging_message(carbon_intensity_fetch=default_intensity_fetch))
+
+        msg = (
+                    f"No carbon intensity provider specified and no location detected. "
+                    f"Defaulting to global average carbon intensity for {constants.WORLD_AVG_CARBON_INTENSITY_YEAR}: "
+                    f"{constants.WORLD_AVG_CARBON_INTENSITY:.2f} gCO2eq/kWh."
+                )
+
+        logger.err_warn.assert_called_with(msg)
 
     @patch("geocoder.ip")
     @patch("pandas.read_csv")
@@ -63,15 +106,36 @@ class TestIntensity(unittest.TestCase):
         logger = MagicMock()
         intensity_service = IntensityService(logger) 
         default_intensity = intensity_service.default_carbon_intensity  
+        msg =   (
+                    f"No carbon intensity provider specified and no location detected. "
+                    f"Defaulting to global average carbon intensity for {constants.WORLD_AVG_CARBON_INTENSITY_YEAR}: "
+                    f"{constants.WORLD_AVG_CARBON_INTENSITY:.2f} gCO2eq/kWh."
+                )
+
+        logger.err_warn.assert_called_with(msg)
+
+        self.assertEqual(default_intensity.carbon_intensity,constants.WORLD_AVG_CARBON_INTENSITY)
 
 
-        expected_description = (
-            f"Live carbon intensity could not be fetched at detected location: {mock_location.address}. "
-            f"Defaulted to average global carbon intensity: {constants.WORLD_AVG_CARBON_INTENSITY:.2f} gCO2eq/kWh ({constants.WORLD_AVG_CARBON_INTENSITY_YEAR})."
-        )
+    @patch("geocoder.ip")
+    @patch("pandas.read_csv")
+    @patch("carbontracker.emissions.intensity.fetchers.electricitymaps.ElectricityMap.fetch_carbon_intensity")
+    def test_get_default_intensity_data_file_failure_with_fetcher(
+            self, mock_electricity_map,mock_read_csv, mock_geocoder_ip
+    ):
+        mock_location = MagicMock()
+        mock_location.ok = True
+        mock_location.address = "Sample Address"
+        mock_location.country = "US"
+        mock_geocoder_ip.return_value = mock_location
 
-        assert default_intensity.carbon_intensity == constants.WORLD_AVG_CARBON_INTENSITY
-        assert intensity_service.generate_logging_message(default_intensity) == expected_description
+        mock_read_csv.side_effect = FileNotFoundError
+        logger = MagicMock()
+        intensity_service = IntensityService(logger,mock_electricity_map) 
+        default_intensity = intensity_service.default_carbon_intensity  
+        logger.err_warn.assert_not_called()
+        self.assertEqual(default_intensity.carbon_intensity,constants.WORLD_AVG_CARBON_INTENSITY)
+
 
     @patch("geocoder.ip")
     def test_get_default_intensity_ip_location_failure(self, mock_geocoder_ip):
@@ -83,167 +147,57 @@ class TestIntensity(unittest.TestCase):
         default_intensity = intensity_service.default_carbon_intensity  
 
         self.assertEqual(default_intensity.carbon_intensity, constants.WORLD_AVG_CARBON_INTENSITY)
-        self.assertIn("Defaulted to average global carbon intensity",intensity_service.generate_logging_message(default_intensity)) 
+        msg =   (
+                    f"No carbon intensity provider specified and no location detected. "
+                    f"Defaulting to global average carbon intensity for {constants.WORLD_AVG_CARBON_INTENSITY_YEAR}: "
+                    f"{constants.WORLD_AVG_CARBON_INTENSITY:.2f} gCO2eq/kWh."
+                )
+
+        logger.err_warn.assert_called_with(msg)
+
 
     @patch("carbontracker.emissions.intensity.intensity.geocoder.ip")
-    def test_generate_logging_message_localized_fallback(self, mock_geocoder_ip):
+    def test_generate_logging_message_on_local_fallback(self, mock_geocoder_ip):
         mock_location = MagicMock()
         mock_location.ok = True
         mock_location.address = "Aarhus, Capital Region, DK"
         mock_location.country = "DK"
         mock_geocoder_ip.return_value = mock_location
 
-        service = IntensityService(logger=Mock())
+        logger = Mock()
+        service = IntensityService(logger=logger)
         default_fetch = service.default_carbon_intensity
 
         expected_message = (
-            f"Defaulted to average carbon intensity for {default_fetch.country}: "
-            f"{default_fetch.carbon_intensity:.2f} gCO2eq/kWh."
-        )
+                    f"No carbon intensity provider specified. "
+                    f"Using average carbon intensity for {default_fetch.country}: "
+                    f"{default_fetch.carbon_intensity:.2f} gCO2eq/kWh.")
 
-        self.assertEqual(
-            service.generate_logging_message(carbon_intensity_fetch=default_fetch),
-            expected_message,
-        )
+        logger.err_warn.assert_called_once_with(expected_message)
+ 
 
     @patch("carbontracker.emissions.intensity.intensity.geocoder.ip")
     def test_generate_logging_message_global_fallback(self, mock_geocoder_ip):
         mock_location = MagicMock()
         mock_location.ok = False
         mock_geocoder_ip.return_value = mock_location
+        logger = Mock()
+        service = IntensityService(logger=logger)
 
-        service = IntensityService(logger=Mock())
-        default_fetch = service.default_carbon_intensity
+        expected_message = (f"No carbon intensity provider specified and no location detected. "
+                    f"Defaulting to global average carbon intensity for {constants.WORLD_AVG_CARBON_INTENSITY_YEAR}: "
+                    f"{service.default_carbon_intensity.carbon_intensity:.2f} gCO2eq/kWh.")
 
-        expected_message = (
-            f"Live carbon intensity could not be fetched at detected location: Unknown. "
-            f"Defaulted to average global carbon intensity: "
-            f"{constants.WORLD_AVG_CARBON_INTENSITY:.2f} gCO2eq/kWh ({constants.WORLD_AVG_CARBON_INTENSITY_YEAR})."
-        )
+        logger.err_warn.assert_called_once_with(expected_message)
+        
+        
 
-        self.assertEqual(
-            service.generate_logging_message(carbon_intensity_fetch=default_fetch),
-            expected_message,
-        )
-
-    @patch("carbontracker.emissions.intensity.intensity.geocoder.ip")
-    def test_generate_logging_message_prediction_with_duration(self, mock_geocoder_ip):
-        mock_location = MagicMock()
-        mock_location.ok = True
-        mock_location.address = "Copenhagen, DK"
-        mock_location.country = "DK"
-        mock_geocoder_ip.return_value = mock_location
-
-        service = IntensityService(logger=Mock())
-        forecast_fetch = IntensityFetch(
-            carbon_intensity=123.456,
-            address=service.address,
-            country=service.country,
-            is_fetched=True,
-            is_localized=True,
-            is_prediction=True,
-            time_duration=3600,
-        )
-
-        expected_message = (
-            "Forecasted carbon intensity for the next 1:00:00: "
-            f"{forecast_fetch.carbon_intensity:.2f} gCO2eq/kWh."
-        )
-
-        self.assertEqual(
-            service.generate_logging_message(carbon_intensity_fetch=forecast_fetch),
-            expected_message,
-        )
-
-    @patch("carbontracker.emissions.intensity.intensity.geocoder.ip")
-    def test_generate_logging_message_prediction_without_duration(self, mock_geocoder_ip):
-        mock_location = MagicMock()
-        mock_location.ok = True
-        mock_location.address = "Copenhagen, DK"
-        mock_location.country = "DK"
-        mock_geocoder_ip.return_value = mock_location
-
-        service = IntensityService(logger=Mock())
-        forecast_fetch = IntensityFetch(
-            carbon_intensity=98.7,
-            address=service.address,
-            country=service.country,
-            is_fetched=True,
-            is_localized=True,
-            is_prediction=True,
-        )
-
-        expected_message = (
-            f"Forecasted carbon intensity: {forecast_fetch.carbon_intensity:.2f} gCO2eq/kWh."
-        )
-
-        self.assertEqual(
-            service.generate_logging_message(carbon_intensity_fetch=forecast_fetch),
-            expected_message,
-        )
-
-    @patch("carbontracker.emissions.intensity.intensity.geocoder.ip")
-    def test_generate_logging_message_prediction_fallback_with_duration(self, mock_geocoder_ip):
-        mock_location = MagicMock()
-        mock_location.ok = True
-        mock_location.address = "Copenhagen, DK"
-        mock_location.country = "DK"
-        mock_geocoder_ip.return_value = mock_location
-
-        service = IntensityService(logger=Mock())
-        fallback_fetch = IntensityFetch(
-            carbon_intensity=service.default_carbon_intensity.carbon_intensity,
-            address=service.address,
-            country=service.country,
-            is_fetched=False,
-            is_localized=True,
-            is_prediction=True,
-            time_duration=7200,
-        )
-
-        expected_message = (
-            "Failed to predict carbon intensity for the next 2:00:00, fallback on average measured intensity "
-            f"at detected location: {service.address}."
-        )
-
-        self.assertEqual(
-            service.generate_logging_message(carbon_intensity_fetch=fallback_fetch),
-            expected_message,
-        )
-
-    @patch("carbontracker.emissions.intensity.intensity.geocoder.ip")
-    def test_generate_logging_message_prediction_fallback_without_duration(self, mock_geocoder_ip):
-        mock_location = MagicMock()
-        mock_location.ok = True
-        mock_location.address = "Copenhagen, DK"
-        mock_location.country = "DK"
-        mock_geocoder_ip.return_value = mock_location
-
-        service = IntensityService(logger=Mock())
-        fallback_fetch = IntensityFetch(
-            carbon_intensity=service.default_carbon_intensity.carbon_intensity,
-            address=service.address,
-            country=service.country,
-            is_fetched=False,
-            is_localized=True,
-            is_prediction=True,
-        )
-
-        expected_message = (
-            "Failed to predict carbon intensity, fallback on average measured intensity "
-            f"at detected location: {service.address}."
-        )
-
-        self.assertEqual(
-            service.generate_logging_message(carbon_intensity_fetch=fallback_fetch),
-            expected_message,
-        )
 
     @patch("geocoder.ip")
-    def test_carbon_intensity_location_failure(self, mock_geocoder_ip):
+    def test_default_ci_on_location_failure_without_fetcher(self, mock_geocoder_ip):
         mock_geocoder_ip.return_value.ok = False
 
-        logger = MagicMock()
+        logger = Mock()
 
         intensity_service = IntensityService(logger) 
         default_intensity = intensity_service.default_carbon_intensity  
@@ -252,8 +206,36 @@ class TestIntensity(unittest.TestCase):
         self.assertEqual(default_intensity.is_fetched, False)
         self.assertEqual(default_intensity.is_localized, False)
         self.assertEqual(default_intensity.is_prediction, False)
-        self.assertIn("Defaulted to average global carbon intensity: ", intensity_service.generate_logging_message(default_intensity) )
 
+
+        msg_err = (f"No carbon intensity provider specified and no location detected. "
+                    f"Defaulting to global average carbon intensity for {constants.WORLD_AVG_CARBON_INTENSITY_YEAR}: "
+                    f"{constants.WORLD_AVG_CARBON_INTENSITY:.2f} gCO2eq/kWh.")
+
+        logger.err_warn.assert_called_with(msg_err)
+
+    @patch("geocoder.ip")
+    @patch("carbontracker.emissions.intensity.fetchers.electricitymaps.ElectricityMap.fetch_carbon_intensity")
+    def test_default_ci_on_location_failure_with_fetcher(self, mock_electricity_map, mock_geocoder_ip):
+        mock_geocoder_ip.return_value.ok = False
+        logger = Mock()
+        mock_electricity_map.return_value.carbon_intensity.return_value = 10
+
+        intensity_service = IntensityService(logger, mock_electricity_map) 
+        default_intensity = intensity_service.default_carbon_intensity  
+
+        self.assertEqual(default_intensity.carbon_intensity, constants.WORLD_AVG_CARBON_INTENSITY)
+        self.assertEqual(default_intensity.address, "Unknown")
+        self.assertEqual(default_intensity.is_fetched, False)
+        self.assertEqual(default_intensity.is_localized, False)
+        self.assertEqual(default_intensity.is_prediction, False)
+
+        msg = (
+                f"Location could not be determined. "
+                f"Using global average carbon intensity for {constants.WORLD_AVG_CARBON_INTENSITY_YEAR}: "
+                f"{constants.WORLD_AVG_CARBON_INTENSITY:.2f} gCO2eq/kWh."
+            )
+        logger.err_warn.assert_called_with(msg)
 
 
     @patch("geocoder.ip")
@@ -264,32 +246,44 @@ class TestIntensity(unittest.TestCase):
         mock_location.address = None
         mock_geocoder_ip.return_value = mock_location
 
-        mock_electricity_map.return_value.suitable.return_value = False
+        fetcher = mock_electricity_map.return_value
+        fetcher.suitable.return_value = False
 
         
         logger = MagicMock()
-        intensity_service = IntensityService(logger, intensity_fetcher=mock_electricity_map) 
+        intensity_service = IntensityService(logger, intensity_fetcher=fetcher) 
         default_intensity = intensity_service.fetch_carbon_intensity("100")
  
         self.assertIsNone(default_intensity.address)
-        mock_electricity_map.suitable.assert_called_once_with(mock_location)
+        fetcher.suitable.assert_called_once_with(mock_location)
 
     @patch("geocoder.ip")
-    @patch("carbontracker.emissions.intensity.fetchers.electricitymaps.ElectricityMap.carbon_intensity")
-    def test_carbon_intensity_failure(self, mock_electricity_map_carbon_intensity, mock_geocoder_ip):
-        mock_location = MagicMock()
+    @patch("carbontracker.emissions.intensity.fetchers.electricitymaps.ElectricityMap")
+    def test_carbon_intensity_failure_on_carbon_intensity_fetch(self, mock_electricity_map_carbon_intensity, mock_geocoder_ip):
+        mock_location = Mock()
         mock_location.ok = True
         mock_geocoder_ip.return_value = mock_location
 
-        mock_electricity_map_carbon_intensity.side_effect = Exception("Test Exception")
+        fetcher = mock_electricity_map_carbon_intensity.return_value
+        fetcher.suitable.return_value = True
+        fetcher.fetch_carbon_intensity.side_effect = Exception("Test Exception")
 
-        logger = MagicMock()
-
-        intensity_service = IntensityService(logger)
-        intensity_fetch = intensity_service.fetch_carbon_intensity() 
+        logger = Mock()
+        intensity_service = IntensityService(logger,
+                                             intensity_fetcher=fetcher)
         
+        intensity_fetch = intensity_service.fetch_carbon_intensity() 
+
+
         self.assertFalse(intensity_fetch.is_fetched)
-        self.assertIn("could not be fetched", intensity_service.generate_logging_message(carbon_intensity_fetch=intensity_fetch))
+        self.assertTrue(intensity_fetch == intensity_service.default_carbon_intensity)
+
+        msg = (
+                f"Fetcher is unable to retrieve carbon intensity data for your detected location {intensity_service.address}. "
+                f"Carbon emissions calculations will fall back to the average carbon intensity for {intensity_service.default_carbon_intensity.country}: {intensity_service.default_carbon_intensity.carbon_intensity:.2f} gCO2eq/kWh.")
+
+        logger.err_warn.assert_called_with(msg)
+        
 
     @patch("carbontracker.emissions.intensity.fetchers.carbonintensitygb.CarbonIntensityGB")
     @patch("carbontracker.emissions.intensity.intensity.geocoder.ip")
@@ -297,26 +291,40 @@ class TestIntensity(unittest.TestCase):
         mock_geocoder.return_value.address = "Sample Address"
         mock_geocoder.return_value.ok = True
         mock_carbonintensitygb.return_value.suitable.return_value = True
-        mock_carbonintensitygb.return_value.carbon_intensity.return_value = 23.0 
+        fetcher = mock_carbonintensitygb.return_value
+        fetcher.fetch_carbon_intensity.return_value = IntensityFetch(
+            carbon_intensity=23.0,
+            address=mock_geocoder.return_value.address,
+            country=mock_geocoder.return_value.country,
+            is_fetched=True,
+            is_localized=True,
+        )
 
         logger = MagicMock()
 
-        intensity_service = IntensityService(logger, mock_carbonintensitygb())
+        intensity_service = IntensityService(logger, fetcher)
 
         intensity_fetch = intensity_service.fetch_carbon_intensity() 
         self.assertEqual(intensity_fetch.carbon_intensity, 23.0)
         self.assertTrue(intensity_fetch.is_fetched)
 
     @patch("carbontracker.emissions.intensity.fetchers.energidataservice.EnergiDataService")
-    def test_carbon_intensity_energidataservice(self, mock_energidataservice):
+    @patch("carbontracker.emissions.intensity.intensity.geocoder.ip")
+    def test_carbon_intensity_energidataservice(self,mock_geocoder, mock_energidataservice):
+        mock_geocoder.return_value.address = "Sample Address"
+        mock_geocoder.return_value.country = "DK"
+        mock_geocoder.return_value.ok = True
         mock_energidataservice.return_value.suitable.return_value = True
-        mock_energidataservice.return_value.carbon_intensity.return_value = 23
+        mock_energidataservice.return_value.fetch_carbon_intensity.return_value = IntensityFetch(
+            carbon_intensity=23.0,
+            address=mock_geocoder.return_value.address,
+            country=mock_geocoder.return_value.country,
+            is_fetched=True,
+            is_localized=True,
+        )
 
         logger = MagicMock()
-        intensity_service = IntensityService(logger, mock_energidataservice())
+        intensity_service = IntensityService(logger, mock_energidataservice.return_value)
         intensity_fetch = intensity_service.fetch_carbon_intensity()
-
         self.assertEqual(intensity_fetch.carbon_intensity, 23.0)
         self.assertTrue(intensity_fetch.is_fetched)
-
-

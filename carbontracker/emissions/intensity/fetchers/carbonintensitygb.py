@@ -5,7 +5,7 @@ import numpy as np
 import requests
 
 from carbontracker import exceptions
-from carbontracker.emissions.intensity.fetcher import IntensityFetcher
+from carbontracker.emissions.intensity.fetcher import IntensityFetch, IntensityFetcher
 
 if TYPE_CHECKING:
     from carbontracker.loggerutil import Logger
@@ -22,19 +22,30 @@ class CarbonIntensityGB(IntensityFetcher):
     def suitable(self, g_location):
         return getattr(g_location, "country", None) == "GB"
 
-    def carbon_intensity(self, g_location, time_dur=None) -> float:
+    def fetch_carbon_intensity(self, g_location, time_dur=None) -> IntensityFetch:
         postcode = getattr(g_location, "postal", None)
+        ci = None
 
         if postcode:
             try:
-                return float(
+                ci = float(
                     self._carbon_intensity_gb_regional(postcode, time_dur=time_dur)
                 )
             except Exception:  # noqa: BLE001
-                # If regional lookup fails we fall back to national data.
-                pass
+                ci = None
 
-        return float(self._carbon_intensity_gb_national(time_dur=time_dur))
+        if ci is None:
+            ci = float(self._carbon_intensity_gb_national(time_dur=time_dur))
+
+        return IntensityFetch(
+            carbon_intensity=ci,
+            address=g_location.address,
+            country=g_location.country,
+            is_fetched=True,
+            is_localized=True,
+            is_prediction= True if time_dur is not None else False,
+            time_duration=time_dur
+        )
 
     def _carbon_intensity_gb_regional(self, postcode, time_dur=None) -> float:
         """Retrieves forecasted carbon intensity (gCO2eq/kWh) in GB by postcode."""

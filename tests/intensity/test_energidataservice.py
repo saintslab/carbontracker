@@ -25,9 +25,9 @@ class TestEnergiDataService(unittest.TestCase):
             "records": [{"CO2Emission": 1.0}, {"CO2Emission": 2.0}]
         }
         mock_get.return_value = mock_response
-        result = self.fetcher.carbon_intensity(self.geocoder)
+        intensity_fetch = self.fetcher.fetch_carbon_intensity(self.geocoder)
 
-        self.assertEqual(result, 1.0)
+        self.assertEqual(intensity_fetch.carbon_intensity, 1.0)
 
     @mock.patch("requests.get")
     def test_carbon_intensity_with_time_dur(self, mock_get):
@@ -43,9 +43,9 @@ class TestEnergiDataService(unittest.TestCase):
         }
         mock_get.return_value = mock_response
 
-        result = self.fetcher.carbon_intensity(self.geocoder, time_dur=1800)
+        intensity_fetch = self.fetcher.fetch_carbon_intensity(self.geocoder, time_dur=1800)
 
-        self.assertEqual(result, 2.5)
+        self.assertEqual(intensity_fetch.carbon_intensity, 2.5)
 
     @mock.patch("requests.get")
     def test_nearest_5_min(self, mock_get):
@@ -61,7 +61,7 @@ class TestEnergiDataService(unittest.TestCase):
         }
         mock_get.return_value = mock_response
 
-        _result = self.fetcher.carbon_intensity(self.geocoder, time_dur=1800)
+        _intensity_fetch = self.fetcher.fetch_carbon_intensity(self.geocoder, time_dur=1800)
 
         now = datetime.datetime.now(datetime.timezone.utc)
 

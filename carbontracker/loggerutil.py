@@ -145,7 +145,9 @@ class Logger:
         )
 
     def output(self, msg, verbose_level=0):
-        self.logger_output.info(self.msg_prepend + msg)
+        self.logger_output.info(self.msg_prepend + msg,
+                                extra={"verbose_level": verbose_level},
+                                )
 
     def info(self, msg):
         self.logger.info(msg)

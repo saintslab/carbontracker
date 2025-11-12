@@ -2,6 +2,16 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional
 
+class IntensityFetch():
+    def __init__(self,carbon_intensity : float, address : str, country : str, is_fetched : bool, is_localized : bool, is_prediction = False, time_duration : Optional[int] = None ): 
+        self.carbon_intensity = carbon_intensity
+        self.address = address
+        self.country = country
+        self.is_prediction = is_prediction
+        self.is_fetched = is_fetched 
+        self.is_localized = is_localized 
+        self.time_duration = time_duration 
+
 class IntensityFetcher:
     __metaclass__ = ABCMeta
 
@@ -15,7 +25,7 @@ class IntensityFetcher:
         raise NotImplementedError
 
     @abstractmethod
-    def carbon_intensity(self, g_location, time_dur=None):
+    def fetch_carbon_intensity(self, g_location, time_dur=None) -> IntensityFetch:
         """
         Returns the carbon intensity by location and duration (s).
         If the API supports predicted intensities time_dur can be used.

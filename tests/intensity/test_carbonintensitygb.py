@@ -174,8 +174,8 @@ class TestCarbonIntensityGB(TestCase):
         g_location = mock.MagicMock(postal="AB12 3CD", country="GB")
         time_dur = 3600
 
-        carbon_intensity_value = self.fetcher.carbon_intensity(g_location, time_dur)
-        self.assertEqual(carbon_intensity_value, 250)
+        intensity_fetch = self.fetcher.fetch_carbon_intensity(g_location, time_dur)
+        self.assertEqual(intensity_fetch.carbon_intensity, 250)
 
     @mock.patch(
         "carbontracker.emissions.intensity.fetchers.carbonintensitygb.requests.get"
@@ -195,8 +195,8 @@ class TestCarbonIntensityGB(TestCase):
         g_location = mock.MagicMock(country="GB")
         time_dur = 3600
 
-        carbon_intensity_value = self.fetcher.carbon_intensity(g_location, time_dur)
-        self.assertEqual(carbon_intensity_value, 250)
+        intensity_fetch = self.fetcher.fetch_carbon_intensity(g_location, time_dur)
+        self.assertEqual(intensity_fetch.carbon_intensity, 250)
 
     @mock.patch(
         "carbontracker.emissions.intensity.fetchers.carbonintensitygb.requests.get"
@@ -217,5 +217,5 @@ class TestCarbonIntensityGB(TestCase):
 
         g_location = mock.MagicMock(postal="AB12 3CD", country="GB")
 
-        carbon_intensity_value = self.fetcher.carbon_intensity(g_location, None)
-        self.assertEqual(carbon_intensity_value, 250)
+        intensity_fetch = self.fetcher.fetch_carbon_intensity(g_location, None)
+        self.assertEqual(intensity_fetch.carbon_intensity, 250)
