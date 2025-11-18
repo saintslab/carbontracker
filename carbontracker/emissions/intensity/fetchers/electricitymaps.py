@@ -22,9 +22,9 @@ class ElectricityMap(IntensityFetcher):
             ci = self._carbon_intensity_by_location(lon=g_location.lng, lat=g_location.lat)
         except:
             ci = self._carbon_intensity_by_location(zone=g_location.country)
-
+        
         return IntensityFetch(
-                    carbon_intensity=ci,
+                    carbon_intensity=float(ci),
                     address=g_location.address,
                     country=g_location.country,
                     is_fetched=True,

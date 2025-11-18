@@ -38,6 +38,7 @@ class IntensityService():
 
                     return result; 
                 except:
+                    
                     self._log_fetch_failed()
                     return self.default_carbon_intensity
         
@@ -47,7 +48,7 @@ class IntensityService():
             intensity = constants.WORLD_AVG_CARBON_INTENSITY
 
             return IntensityFetch(
-            carbon_intensity=intensity,
+            carbon_intensity=float(intensity),
             address=self.address,
             country=self.country,
             is_localized=False,
@@ -74,9 +75,9 @@ class IntensityService():
                 intensity_row = carbon_intensities_df[
                     carbon_intensities_df["alpha-2"] == self.country
                 ].iloc[0]
-                intensity: float = intensity_row["Carbon intensity of electricity (gCO2eq/kWh)"]
+                intensity = intensity_row["Carbon intensity of electricity (gCO2eq/kWh)"]
                 return IntensityFetch(
-                    carbon_intensity=intensity,
+                    carbon_intensity=float(intensity),
                     address=self.address,
                     country=self.country,
                     is_fetched=False,
@@ -87,7 +88,7 @@ class IntensityService():
                 self.logger.err_debug(err)
                 intensity = constants.WORLD_AVG_CARBON_INTENSITY
                 return IntensityFetch(
-                carbon_intensity=intensity,
+                carbon_intensity=float(intensity),
                 address=self.address,
                 country=self.country,
                 is_localized=False,

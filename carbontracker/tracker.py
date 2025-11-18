@@ -79,10 +79,10 @@ class CarbonIntensityThread(Thread):
 
     def average_carbon_intensity(self) -> float :
         if not self.carbon_intensities_fetches:
-            ci = self.carbon_intensity_service.fetch_carbon_intensity(time_duration=None)
-            self.carbon_intensities_fetches.append(ci)
+            ci_fetch = self.carbon_intensity_service.fetch_carbon_intensity(time_duration=None)
+            self.carbon_intensities_fetches.append(ci_fetch)
 
-        location = self.carbon_intensities_fetches[-1].address
+        location = self.carbon_intensity_service.address
         intensities = [ci.carbon_intensity for ci in self.carbon_intensities_fetches]
         avg_intensity = np.mean(intensities)
 
@@ -90,12 +90,15 @@ class CarbonIntensityThread(Thread):
             f"Average carbon intensity during training was {avg_intensity:.2f}"
             f" gCO2eq/kWh. " 
         )    
-    
+
+        formatted_intensities = [round(float(intensity),2) for intensity in intensities] 
+
         self.logger.info(
             "Carbon intensities (gCO2eq/kWh) fetched every "
-            f"{self.update_interval} s at detected location {location}: "
-            f"{intensities}"
+            f"{self.update_interval} s at detected location: {location}: "
+            f"{formatted_intensities}"
         )
+        self.logger.info(msg)
         self.logger.output(msg, verbose_level=1)
 
         return float(avg_intensity)

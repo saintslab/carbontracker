@@ -2,7 +2,7 @@
   "version": "2024-30-10",
   "intensityFetchers": {
    "electricitymaps":  {   
-      "displayName": "Elictricity Maps API",
+      "displayName": "Electricity Maps API",
       "description": "Electricity Maps provides global access to electricity mix, prices and carbon intensity. ",
       "requiredCredentials": [
         {

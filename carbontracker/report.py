@@ -55,6 +55,7 @@ class LogParser:
         self._parse_log()
     
     def _parse_log(self):
+        print("Parsing Log")
         # Parse version and PUE info
         version_match = re.search(r'carbontracker version ([\d\.]+)', self.log_content)
         if version_match:
@@ -86,13 +87,16 @@ class LogParser:
                 'cpu_power': cpu_power,
                 'total_power': gpu_power + cpu_power
             })
-        
-        # Parse carbon intensity
-        ci_match = re.search(r'Average carbon intensity during training was ([\d\.]+) gCO2eq/kWh at detected location: (.*)', self.log_content)
+
+        ci_match = re.search(r'Average carbon intensity during training was ([\d\.]+) gCO2eq/kWh', self.log_content)
         if ci_match:
             self.carbon_intensity = float(ci_match.group(1))
-            self.location = ci_match.group(2)
         
+        location_match = r'Carbon intensities .*? at detected location ([A-Za-z .-]+, [A-Za-z .-]+, [A-Z]{2})'
+        location_match = re.search(location_match, self.log_content)
+        if location_match:
+            self.location = location_match.group(1)
+
         # Parse timestamps
         timestamp_pattern = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})'
         timestamps = re.findall(timestamp_pattern, self.log_content)

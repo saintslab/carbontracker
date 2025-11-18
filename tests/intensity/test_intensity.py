@@ -35,6 +35,7 @@ class TestIntensity(unittest.TestCase):
         expected_intensity = intensity_row["Carbon intensity of electricity (gCO2eq/kWh)"]
 
         self.assertEqual(default_intensity_fetch.carbon_intensity, expected_intensity)
+        self.assertIsInstance(default_intensity_fetch.carbon_intensity, float)
 
 
         msg =     (f"No carbon intensity provider specified. "
@@ -87,6 +88,7 @@ class TestIntensity(unittest.TestCase):
                     f"Defaulting to global average carbon intensity for {constants.WORLD_AVG_CARBON_INTENSITY_YEAR}: "
                     f"{constants.WORLD_AVG_CARBON_INTENSITY:.2f} gCO2eq/kWh."
                 )
+        self.assertIsInstance(default_intensity_fetch.carbon_intensity, float)
 
         logger.err_warn.assert_called_with(msg)
 
@@ -115,6 +117,7 @@ class TestIntensity(unittest.TestCase):
         logger.err_warn.assert_called_with(msg)
 
         self.assertEqual(default_intensity.carbon_intensity,constants.WORLD_AVG_CARBON_INTENSITY)
+        self.assertIsInstance(default_intensity.carbon_intensity, float)
 
 
     @patch("geocoder.ip")
@@ -135,6 +138,7 @@ class TestIntensity(unittest.TestCase):
         default_intensity = intensity_service.default_carbon_intensity  
         logger.err_warn.assert_not_called()
         self.assertEqual(default_intensity.carbon_intensity,constants.WORLD_AVG_CARBON_INTENSITY)
+        self.assertIsInstance(default_intensity.carbon_intensity, float)
 
 
     @patch("geocoder.ip")
@@ -147,6 +151,7 @@ class TestIntensity(unittest.TestCase):
         default_intensity = intensity_service.default_carbon_intensity  
 
         self.assertEqual(default_intensity.carbon_intensity, constants.WORLD_AVG_CARBON_INTENSITY)
+        self.assertIsInstance(default_intensity.carbon_intensity, float)
         msg =   (
                     f"No carbon intensity provider specified and no location detected. "
                     f"Defaulting to global average carbon intensity for {constants.WORLD_AVG_CARBON_INTENSITY_YEAR}: "
@@ -206,6 +211,7 @@ class TestIntensity(unittest.TestCase):
         self.assertEqual(default_intensity.is_fetched, False)
         self.assertEqual(default_intensity.is_localized, False)
         self.assertEqual(default_intensity.is_prediction, False)
+        self.assertIsInstance(default_intensity.carbon_intensity, float)
 
 
         msg_err = (f"No carbon intensity provider specified and no location detected. "
@@ -229,6 +235,7 @@ class TestIntensity(unittest.TestCase):
         self.assertEqual(default_intensity.is_fetched, False)
         self.assertEqual(default_intensity.is_localized, False)
         self.assertEqual(default_intensity.is_prediction, False)
+        self.assertIsInstance(default_intensity.carbon_intensity, float)
 
         msg = (
                 f"Location could not be determined. "
@@ -275,6 +282,7 @@ class TestIntensity(unittest.TestCase):
         intensity_fetch = intensity_service.fetch_carbon_intensity() 
 
 
+        self.assertIsInstance(intensity_fetch.carbon_intensity, float)
         self.assertFalse(intensity_fetch.is_fetched)
         self.assertTrue(intensity_fetch == intensity_service.default_carbon_intensity)
 
@@ -306,6 +314,7 @@ class TestIntensity(unittest.TestCase):
 
         intensity_fetch = intensity_service.fetch_carbon_intensity() 
         self.assertEqual(intensity_fetch.carbon_intensity, 23.0)
+        self.assertIsInstance(intensity_fetch.carbon_intensity, float)
         self.assertTrue(intensity_fetch.is_fetched)
 
     @patch("carbontracker.emissions.intensity.fetchers.energidataservice.EnergiDataService")
@@ -326,5 +335,6 @@ class TestIntensity(unittest.TestCase):
         logger = MagicMock()
         intensity_service = IntensityService(logger, mock_energidataservice.return_value)
         intensity_fetch = intensity_service.fetch_carbon_intensity()
+        self.assertIsInstance(intensity_fetch.carbon_intensity, float)
         self.assertEqual(intensity_fetch.carbon_intensity, 23.0)
         self.assertTrue(intensity_fetch.is_fetched)
